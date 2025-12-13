@@ -10,7 +10,7 @@
          height: 400px; overflow-y: scroll; font-family: monospace; }
   #log { border: 1px solid #ccc; background: #111; color: #0f0; padding: 10px;
          height: 200px; overflow-y: scroll; font-family: monospace; }
-  
+
   /* Dimmed background */
   .modal-backdrop {
     position: fixed;
@@ -381,7 +381,7 @@ function validate_crc(data) {
 
 function validate_length(view, index) {
   length = view.getUint8(index);
-  // length byte represents number of subsequent bytes 
+  // length byte represents number of subsequent bytes
   // not including itself
   return view.byteLength-index-1 == length;
 }
@@ -484,7 +484,7 @@ const deviceInfoNameByUuid = {
 
 // first 4 bytes (little-endian) of "System ID" is the "Brain ID"
 // used to uniquely identify the brain, and store pair/connection code
-const SYSTEM_ID_CHAR_UUID = '00002a23-0000-1000-8000-00805f9b34fb'; 
+const SYSTEM_ID_CHAR_UUID = '00002a23-0000-1000-8000-00805f9b34fb';
 
 const DISPLAY_PAIR_CODE_COMMAND = new Uint8Array([0xFF,0xFF,0xFF,0xFF]);
 const CLEAR_PAIR_CODE_COMMAND   = new Uint8Array([0x00,0x00,0x00,0x00]);
@@ -544,6 +544,16 @@ function log(msg) {
 function clearLog() {
   logEl.innerHTML = '';
   logEl.scrollTop = 0;
+}
+
+function clearStdout() {
+  stdout.innerHTML = '';
+  stdout.scrollTop = 0;
+}
+
+function clearBoth() {
+  clearLog();
+  clearStdout();
 }
 
 // =======================================================
@@ -731,7 +741,7 @@ async function queryDeviceInfo() {
         attrs.brainId = val.getUint32(0, true);
         attrs.brainIdHexString = attrs.brainId.toString(16).padStart(8, '0');
         log(`Brain ID: ${attrs.brainIdHexString}`);
-        // VM1546:184 [READ] bytes: [5a 8c c4 03 00 00 00 00]  ascii:"Z......."    First 4 bytes are BrainID? 0x03c48c5a = 63212634 
+        // VM1546:184 [READ] bytes: [5a 8c c4 03 00 00 00 00]  ascii:"Z......."    First 4 bytes are BrainID? 0x03c48c5a = 63212634
         // Bluetooth pairing code is stored in Chrome local storage with this info: BLE_LOCK_KEY63212634 = 8376
       }
     }
@@ -835,9 +845,16 @@ function stdout_handler(event) {
     }
     else {
       // non null byte, print in console
+      // Check if the user is already at or near the bottom (e.g., within 1 pixel inaccuracy)
+      const isScrolledToBottom = stdout.scrollHeight - stdout.clientHeight <= stdout.scrollTop + 1;
+
       const charStr = String.fromCharCode(byte);
       stdout.textContent += charStr;
-      stdout.scrollTop = logEl.scrollHeight;
+
+      // Only scroll to the bottom if they were already there
+      if (isScrolledToBottom) {
+        stdout.scrollTop = stdout.scrollHeight;
+      }
     }
   }
 
@@ -936,7 +953,7 @@ connectBtn.addEventListener('click', async () => {
     if (stdoutChar.properties.notify) {
       stdoutChar.addEventListener('characteristicvaluechanged', stdout_handler);
     }
-    
+
     const characteristics = await service.getCharacteristics();
     for (const char of characteristics) {
       if (char.properties.notify) {
@@ -1023,7 +1040,7 @@ stopBtn.addEventListener('click', async () => {
 });
 
 // ===== Clear Button =====
-clearBtn.addEventListener('click', clearLog);
+clearBtn.addEventListener('click', clearBoth);
 
 // ===== Bob Button ====
 renameBtn.addEventListener('click', renameBrain);
