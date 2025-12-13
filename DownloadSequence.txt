@@ -1,0 +1,25 @@
+Download Sequence
+
+All values written to 08590f7e-db05-467e-8757-72f6faeb13f5
+
+command_id's:
+2e: read attribute by name
+2f: write attribute by name
+18: start/stop commands
+19: ??
+21: Begin Download ?
+
+w_header: c9 36 b8 47
+r_header: aa 55
+
+1) Write: w_header + 21
+
+2) Write: w_header + 56 19 + 1a (len 26) + data + c2 c6 (crc)
+40 00 70 79 74 68 6f 6e 5f 76 6d 2e 62 69 6e 00 00 00 00 00 00 00 00 00 00 00
+ @ \0  p  y  t  h  o  n  _  v  m  .  b  i  n NUL*11
+
+3) Reply to #1 (cmd:21): r_header + 21 + 0a (len 10) + 00 00 01 00 00 00 00 00 00 06
+No CRC on this message
+
+4) Reply to #2 (cmd:56 xx 19): r_header + 56 35 19 + 76 (success) +
+40 40 00 00 00 00 00 80 03 1e 4c 69 fa 62 69 6e 00 00 00 00
