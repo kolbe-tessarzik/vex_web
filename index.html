@@ -1,0 +1,1018 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>VEX IQ BLE Control</title>
+<style>
+  body { font-family: sans-serif; padding: 20px; background:#f5f5f5; }
+  button, select { font-size: 1rem; margin: 5px; padding: 10px 15px; }
+  #stdout { white-space: pre; border: 1px solid #ccc; background: #111; color: rgb(255, 255, 255); padding: 10px;
+         height: 400px; overflow-y: scroll; font-family: monospace; }
+  #log { border: 1px solid #ccc; background: #111; color: #0f0; padding: 10px;
+         height: 200px; overflow-y: scroll; font-family: monospace; }
+  
+  /* Dimmed background */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+  }
+
+  /* Modal box */
+  .modal {
+    width: 480px;
+    background: white;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+  }
+
+  /* Header */
+  .modal-header {
+    background: #e5e6e9;
+    padding: 20px;
+    font-size: 24px;
+    font-weight: 600;
+    text-align: center;
+  }
+
+  /* Body */
+  .modal-body {
+    padding: 30px;
+    font-size: 20px;
+    text-align: center;
+  }
+
+  .modal-body input {
+    width: 80%;
+    font-size: 24px;
+    padding: 12px;
+    margin-top: 20px;
+    border-radius: 8px;
+    border: 2px solid #ccc;
+    outline: none;
+    text-align: center;
+  }
+
+  .invalid {
+    background: #ff8a3d;        /* the orange fill */
+    border-color: #0057ff;      /* bright blue outline */
+    border-width: 3px;
+  }
+
+  .modal-body input:focus {
+    border-color: #6ba5ff;
+  }
+
+  /* Footer */
+  .modal-footer {
+    padding: 20px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+  }
+
+  .btn {
+    font-size: 18px;
+    padding: 10px 22px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+  }
+
+  .btn-cancel {
+    background: #5b6168;
+    color: white;
+  }
+
+  .btn-submit {
+    background: #a8c5ff;
+    color: white;
+  }
+
+  .btn-submit.enabled {
+    background: #6ba5ff;
+  }
+
+</style>
+</head>
+<body>
+
+<h2>VEX IQ BLE Control</h2>
+
+<button id="connectBtn">Connect to Brain</button>
+<select id="slotPicker">
+  <option value="1">Slot 1</option>
+  <option value="2">Slot 2</option>
+  <option value="3">Slot 3</option>
+  <option value="4">Slot 4</option>
+  <option value="5">Slot 5</option>
+  <option value="6">Slot 6</option>
+  <option value="7">Slot 7</option>
+  <option value="8">Slot 8</option>
+</select>
+<button id="startBtn">Start</button>
+<button id="stopBtn">Stop</button>
+<button id="clearBtn">Clear</button>
+<button id="rename">Rename</button>
+
+<h3>Brain Console</h3>
+<span id="heading">Waiting on brain . . .</span>
+<div id="stdout"></div>
+<h3>Log</h3>
+<div id="log"></div>
+
+<!-- modal backdrop goes LAST so it overlays everything -->
+<div id="backdrop" class="modal-backdrop">
+  <!-- Modal -->
+  <div class="modal">
+    <div class="modal-header">
+      Radio Connection Code
+    </div>
+
+    <div class="modal-body">
+      <span id="modal-text">
+      Enter the 4-digit Radio Connection Code displayed on the IQ Brain
+      </span>
+      <br>
+      <input id="modalInput" maxlength="4" />
+    </div>
+
+    <div class="modal-footer">
+      <button id="modalCancelBtn" class="btn btn-cancel">Cancel</button>
+      <button id="modalSubmitBtn" class="btn btn-submit" disabled>Submit</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ========== VEX IQ BLE SNIFFER HOOK ==========
+// Intercepts services, characteristics, reads, writes, notifications.
+console.log("%c[BLE Hook] Installing...", "color:#0f0; font-weight:bold");
+
+const origRequestDevice =
+  navigator.bluetooth.requestDevice.bind(navigator.bluetooth);
+
+navigator.bluetooth.requestDevice = async function(options) {
+  console.log("%c[BLE Hook] requestDevice options:", "color:#0af", options);
+
+  const device = await origRequestDevice(options);
+  console.log("%c[BLE Hook] Device selected:", "color:#0af", device);
+
+  if (!device.gatt) return device;
+
+  const origConnect = device.gatt.connect.bind(device.gatt);
+
+  device.gatt.connect = async function() {
+    console.log("%c[BLE Hook] gatt.connect()", "color:#0f0");
+
+    const server = await origConnect();
+    console.log("%c[BLE Hook] GATT connected:", "color:#0f0", server);
+
+    // -------------------------
+    // Hook getPrimaryService
+    // -------------------------
+    const origGetPrimaryService =
+      server.getPrimaryService.bind(server);
+
+    server.getPrimaryService = async function(serviceUUID) {
+      console.log("%c[BLE Hook] getPrimaryService:", "color:#fa0", serviceUUID);
+
+      const service = await origGetPrimaryService(serviceUUID);
+
+      hookService(service);
+      return service;
+    };
+
+    // -------------------------
+    // Hook getPrimaryServices
+    // -------------------------
+    const origGetPrimaryServices =
+      server.getPrimaryServices.bind(server);
+
+    server.getPrimaryServices = async function() {
+      console.log("%c[BLE Hook] getPrimaryServices()", "color:#fa0");
+
+      const services = await origGetPrimaryServices();
+      console.log("%c[BLE Hook] → returned services:", "color:#fa0", services);
+
+      for (const s of services) hookService(s);
+      return services;
+    };
+
+    return server;
+  };
+
+  return device;
+};
+
+// =======================================================
+// SERVICE HOOKING: wrap getCharacteristic & getCharacteristics
+// =======================================================
+function hookService(service) {
+  if (service._bleSnifferHooked) return;
+  service._bleSnifferHooked = true;
+
+  console.log("%c[BLE Hook] Hooking service:", "color:#0ff", service.uuid);
+
+  const origGetCharacteristic = service.getCharacteristic.bind(service);
+  service.getCharacteristic = async function(charUUID) {
+    console.log("%c[BLE Hook]   getCharacteristic:", "color:#0ff", charUUID);
+
+    const characteristic = await origGetCharacteristic(charUUID);
+
+    hookCharacteristic(characteristic);
+    return characteristic;
+  };
+
+  const origGetCharacteristics = service.getCharacteristics?.bind(service);
+  if (origGetCharacteristics) {
+    service.getCharacteristics = async function() {
+      console.log("%c[BLE Hook]   getCharacteristics()", "color:#0ff");
+      const chars = await origGetCharacteristics();
+      for (const c of chars) hookCharacteristic(c);
+      return chars;
+    };
+  }
+}
+
+// =======================================================
+// CHARACTERISTIC HOOKING
+// =======================================================
+function hookCharacteristic(char) {
+  if (char._bleSnifferHooked) return;
+  char._bleSnifferHooked = true;
+
+  console.log(
+    "%c[BLE Hook]     Hooking characteristic:",
+    "color:#f0f",
+    char.uuid
+  );
+
+  // ---- readValue ----
+  const origReadValue = char.readValue?.bind(char);
+  if (origReadValue) {
+    char.readValue = async function() {
+      console.log("%c[BLE Hook]     readValue:", "color:#f0f", char.uuid);
+
+      const v = await origReadValue();
+      logData("[READ]", v);
+      return v;
+    };
+  }
+
+  // ---- writeValue ----
+  const origWriteValue = char.writeValue?.bind(char);
+  if (origWriteValue) {
+    char.writeValue = async function(value) {
+      console.log("%c[BLE Hook]     writeValue:", "color:#f0f", char.uuid);
+
+      logData("[WRITE]", value);
+      return origWriteValue(value);
+    };
+  }
+
+  // ---- writeValueWithoutResponse ----
+  const origWriteNoResp = char.writeValueWithoutResponse?.bind(char);
+  if (origWriteNoResp) {
+    char.writeValueWithoutResponse = async function(value) {
+      console.log("%c[BLE Hook]     writeValueWithoutResponse:",
+                  "color:#f0f", char.uuid);
+
+      logData("[WRITE_NR]", value);
+      return origWriteNoResp(value);
+    };
+  }
+
+  // ---- startNotifications ----
+  const origStartNotif = char.startNotifications?.bind(char);
+  if (origStartNotif) {
+    char.startNotifications = async function() {
+      console.log("%c[BLE Hook]     startNotifications:", "color:#f0f", char.uuid);
+
+      const result = await origStartNotif();
+
+      char.addEventListener("characteristicvaluechanged", evt => {
+        const dv = evt.target.value;
+        logData(`[NOTIFY: ${char.uuid}]`, dv);
+      });
+
+      return result;
+    };
+  }
+}
+
+// =======================================================
+// Utility: pretty-print bytes and ASCII
+// =======================================================
+function logData(prefix, val) {
+  if (!val) return;
+
+  let bytes = [];
+  let ascii = "";
+
+  if (val instanceof DataView) {
+    for (let i = 0; i < val.byteLength; i++) {
+      const b = val.getUint8(i);
+      bytes.push(b.toString(16).padStart(2, "0"));
+      ascii += (b >= 32 && b < 127) ? String.fromCharCode(b) : ".";
+    }
+  } else if (val instanceof Uint8Array) {
+    for (const b of val) {
+      bytes.push(b.toString(16).padStart(2, "0"));
+      ascii += (b >= 32 && b < 127) ? String.fromCharCode(b) : ".";
+    }
+  } else {
+    console.log(prefix, "[unknown type]", val);
+    return;
+  }
+
+  console.log(
+    `%c${prefix} bytes: [${bytes.join(" ")}]  ascii:"${ascii}"`,
+    "color:#ccc;font-family:monospace"
+  );
+}
+
+console.log("%c[BLE Hook ready]", "color:#0f0; font-weight:bold");
+
+
+// =======================================================
+// Main program
+// =======================================================
+function crc16(data) {
+    // data: Uint8Array or array of numbers (0–255)
+    let crc = 0;
+
+    for (let n = 0; n < data.length; n++) {
+        crc ^= (data[n] << 8);
+
+        for (let i = 0; i < 8; i++) {
+            if (crc & 0x8000) {
+                crc = ((crc << 1) ^ 0x1021) & 0xFFFF;
+            } else {
+                crc = (crc << 1) & 0xFFFF;
+            }
+        }
+    }
+    return crc & 0xFFFF;  // ensure 16-bit
+}
+
+function apply_crc(data) {
+  // data: Uint8Array
+  const crc = crc16(data);
+  const new_array = new Uint8Array(data.length + 2);
+  new_array.set(data, 0);
+  const view = new DataView(new_array.buffer);
+  view.setUint16(data.length, crc);
+  return view;
+}
+
+function validate_crc(data) {
+  const crc_pos = data.byteLength - 2;
+  const extracted_crc = data.getUint16(crc_pos);
+  const just_the_data = new Uint8Array(data.buffer, 0, crc_pos);
+  const computed_crc = crc16(just_the_data);
+  return (computed_crc == extracted_crc);
+}
+
+function validate_length(view, index) {
+  length = view.getUint8(index);
+  // length byte represents number of subsequent bytes 
+  // not including itself
+  return view.byteLength-index-1 == length;
+}
+
+function reply_handler(event) {
+  // [aa 55 56 04 18 76 4b a6]: successful start/stop
+  // [aa 55 56 04 18 ff 4b 07]: failed start
+  // [aa 55 56 12 2e 76 4b 6f 6c 62 65 73 42 72 61 69 6e 35 34 00 b6 b9]  ascii:".UV..vKolbesBrain54..."
+  const data = event.target.value;
+  const header = data.getUint16(0);
+  if (header != 0xaa55)
+  {
+    console.log(`Unexpected header: ${header}`);
+    return;
+  }
+  const code = data.getUint8(2);
+  if (code == 0xa4) {
+    // [aa 55 a4 08 01 00 09 01 00 20 00 00]  ascii:".U....... .."
+    console.log("Received VexOS Version")
+    // add version decoding later
+    return;
+  }
+  if (code != 0x56) {
+    console.log(`Unknown code ${code}`);
+    return;
+  }
+  if (!validate_crc(data)) {
+    console.log("Reply notification has corrupted CRC");
+    return;
+  }
+  if (!validate_length(data, 3)) {
+    console.log(`Bad length/message: ${data}`);
+  }
+  const command_id = data.getUint8(4);
+  const success_code = data.getUint8(5);
+
+  switch (command_id) {
+    case 0x18:
+      if (success_code == 0x76) {
+        log("Successful start/stop");
+        return;
+      }
+      if (success_code == 0xff) {
+        log("Can't start empty slot");
+        return;
+      }
+      console.log(`Unknown success code ${success_code.toString(16)}`);
+      return;
+    case 0x2e:
+      if (success_code != 0x76) {
+        console.log(`Unknown success code ${success_code.toString(16)}`);
+        return;
+      }
+      // [aa 55 56 12 2e 76 4b 6f 6c 62 65 73 42 72 61 69 6e 35 34 00 b6 b9]  ascii:".UV..vKolbesBrain54..."
+      const decoder = new TextDecoder();
+      attrs[mostRecentReadAttr] = decoder.decode(data.buffer.slice(6, -3));
+      return;
+    case 0x2f:
+      if (success_code == 0x76) {
+        log(`Successful write_attribute`);
+        return;
+      }
+      else
+      {
+        console.log(`Failed write_attribute ${success_code.toString(16)}`);
+        return;
+      }
+
+    default:
+      console.log(`Unknown command id ${command_id.toString(16)}`);
+      return;
+  }
+}
+
+// ===== BLE Variables =====
+let brainDevice = null;
+let deviceInfoService = null;
+let mostRecentReadAttr = null;
+let writeChar = null;
+let attrs = {};
+var byteBuffer = new ArrayBuffer(0);
+
+const DEVICE_INFO_SERVICE_UUID    = '0000180a-0000-1000-8000-00805f9b34fb';
+const VEX_IQ_SERVICE1_UUID        = '08590f7e-db05-467e-8757-72f6faeb13d5';
+const VEX_IQ_SERVICE2_UUID        = '6faa6911-9200-49a0-a353-6152c5930ec5';
+const SPECIAL_HANDSHAKE_CHAR_UUID = '08590f7e-db05-467e-8757-72f6faeb13e5'; // used for pairing code
+const WRITE_CHAR_UUID             = '08590f7e-db05-467e-8757-72f6faeb13f5';
+const REPLY_CHANNEL_UUID          = '08590f7e-db05-467e-8757-72f6faeb1306';
+const STDOUT_CHANNEL_UUID         = '08590f7e-db05-467e-8757-72f6faeb1316';
+
+const deviceInfoNameByUuid = {
+  '00002a23-0000-1000-8000-00805f9b34fb': 'System ID',
+  '00002a24-0000-1000-8000-00805f9b34fb': 'Model Number',
+  '00002a25-0000-1000-8000-00805f9b34fb': 'Serial Number',
+  '00002a26-0000-1000-8000-00805f9b34fb': 'Firmware Revision',
+  '00002a27-0000-1000-8000-00805f9b34fb': 'Hardware Revision',
+  '00002a28-0000-1000-8000-00805f9b34fb': 'Software Revision',
+  '00002a29-0000-1000-8000-00805f9b34fb': 'Manufacturer',
+};
+
+// first 4 bytes (little-endian) of "System ID" is the "Brain ID"
+// used to uniquely identify the brain, and store pair/connection code
+const SYSTEM_ID_CHAR_UUID = '00002a23-0000-1000-8000-00805f9b34fb'; 
+
+const DISPLAY_PAIR_CODE_COMMAND = new Uint8Array([0xFF,0xFF,0xFF,0xFF]);
+const CLEAR_PAIR_CODE_COMMAND   = new Uint8Array([0x00,0x00,0x00,0x00]);
+
+const COMMAND_HEADER = new Uint8Array([0xc9,0x36,0xb8,0x47]);
+const COMMAND_HEADER_LEN = 4;
+const CRC_LEN = 2;
+
+
+// ===== Hard-coded start commands for slots 1–8 =====
+// These come from sniffer logs
+const START_COMMANDS = {
+  0: new Uint8Array([0xc9,0x36,0xb8,0x47,0x56,0x18,0x1a,0x01,0x00,0x5f,0x5f,0x5f,0x73,0x5f,0x30,0x30,0x2e,0x62,0x69,0x6e,0x2e,0x62,0x69,0x6e,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00]), // 0x62,0x95
+  1: new Uint8Array([0xc9,0x36,0xb8,0x47,0x56,0x18,0x1a,0x01,0x00,0x5f,0x5f,0x5f,0x73,0x5f,0x30,0x31,0x2e,0x62,0x69,0x6e,0x2e,0x62,0x69,0x6e,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00]), // 0x92,0xa4
+  2: new Uint8Array([0xc9,0x36,0xb8,0x47,0x56,0x18,0x1a,0x01,0x00,0x5f,0x5f,0x5f,0x73,0x5f,0x30,0x32,0x2e,0x62,0x69,0x6e,0x2e,0x62,0x69,0x6e,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00]), // 0x92,0xd6
+  3: new Uint8Array([0xc9,0x36,0xb8,0x47,0x56,0x18,0x1a,0x01,0x00,0x5f,0x5f,0x5f,0x73,0x5f,0x30,0x33,0x2e,0x62,0x69,0x6e,0x2e,0x62,0x69,0x6e,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00]),
+  4: new Uint8Array([0xc9,0x36,0xb8,0x47,0x56,0x18,0x1a,0x01,0x00,0x5f,0x5f,0x5f,0x73,0x5f,0x30,0x34,0x2e,0x62,0x69,0x6e,0x2e,0x62,0x69,0x6e,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00]),
+  5: new Uint8Array([0xc9,0x36,0xb8,0x47,0x56,0x18,0x1a,0x01,0x00,0x5f,0x5f,0x5f,0x73,0x5f,0x30,0x35,0x2e,0x62,0x69,0x6e,0x2e,0x62,0x69,0x6e,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00]),
+  6: new Uint8Array([0xc9,0x36,0xb8,0x47,0x56,0x18,0x1a,0x01,0x00,0x5f,0x5f,0x5f,0x73,0x5f,0x30,0x36,0x2e,0x62,0x69,0x6e,0x2e,0x62,0x69,0x6e,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00]),
+  7: new Uint8Array([0xc9,0x36,0xb8,0x47,0x56,0x18,0x1a,0x01,0x00,0x5f,0x5f,0x5f,0x73,0x5f,0x30,0x37,0x2e,0x62,0x69,0x6e,0x2e,0x62,0x69,0x6e,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00]),
+};
+
+const STOP_COMMAND = new Uint8Array([0xc9,0x36,0xb8,0x47,0x56,0x18,0x1a,0x01,0x80,0x6e,0x75,0x6c,0x6c,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00]); // 0xa5,0x68
+
+// ===== DOM Elements =====
+const statusEl = document.getElementById("status");
+const connectBtn = document.getElementById("connectBtn");
+const slotPicker = document.getElementById("slotPicker");
+const startBtn = document.getElementById("startBtn");
+const stopBtn = document.getElementById("stopBtn");
+const clearBtn = document.getElementById('clearBtn')
+const renameBtn = document.getElementById("rename");
+const stdout = document.getElementById('stdout');
+const logEl = document.getElementById('log');
+
+function log(msg) {
+  const line = document.createElement('div');
+  line.textContent = msg;
+  logEl.appendChild(line);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+function clearLog() {
+  logEl.innerHTML = '';
+  logEl.scrollTop = 0;
+}
+
+// =======================================================
+// Modal Dialog for Bluetooth pairing code entry
+// =======================================================
+const backdrop = document.getElementById("backdrop");
+const modalText = document.getElementById("modal-text");
+const modalInput = document.getElementById("modalInput");
+const modalSubmitBtn = document.getElementById("modalSubmitBtn");
+const modalCancelBtn = document.getElementById("modalCancelBtn");
+
+function modalPrompt(prompt, regex, input_max_len=0, default_input="") {
+  return new Promise((resolve, reject) => {
+    modalText.textContent = prompt;
+    backdrop.style.display = "flex";
+    document.body.style.overflow = "hidden";
+    modalInput.value = default_input;
+    if (input_max_len <= 0) {
+      modalInput.removeAttribute("maxLength");
+    }
+    else {
+      modalInput.maxLength = input_max_len;
+    }
+    modalInput.classList.remove("invalid");
+    modalSubmitBtn.disabled = true;
+    modalSubmitBtn.classList.remove("enabled");
+    requestAnimationFrame(() => modalInput.focus()); // Focus after render
+
+    function cleanup() {
+      backdrop.style.display = "none";
+      document.body.style.overflow = "";
+      modalInput.removeEventListener("input", onInputChange);
+      modalInput.removeEventListener("keydown", onInputKeyDown);
+      modalSubmitBtn.removeEventListener("click", onSubmit);
+      modalCancelBtn.removeEventListener("click", onCancel);
+      document.removeEventListener("keydown", onKeyDown);
+    }
+
+    function onInputChange() {
+      // Enable submit for correct regex
+      if (regex.test(modalInput.value)) {
+        modalSubmitBtn.disabled = false;
+        modalSubmitBtn.classList.add("enabled");
+        modalInput.classList.remove("invalid");
+      } else {
+        modalSubmitBtn.disabled = true;
+        modalSubmitBtn.classList.remove("enabled");
+        if (modalInput.value.length !== 0) {
+          modalInput.classList.add("invalid");
+        } else {
+          modalInput.classList.remove("invalid");
+        }
+      }
+    }
+
+    function getValidInput() {
+      // must be exactly 4 decimal digits
+      const v = modalInput.value;
+      if (regex.test(v)) {
+        return v;
+      }
+      else {
+        return "";
+      }
+    }
+
+    function onSubmit() {
+      const v = getValidInput();
+      if (!v) {
+        modalInput.classList.add("invalid");
+        return;
+      }
+      cleanup();
+      resolve(v);
+    }
+
+    function onCancel() {
+      cleanup();
+      resolve(null);
+    }
+
+    function onInputKeyDown(e) {
+      if (e.key === "Enter") {
+        if (getValidInput()) {
+          onSubmit();
+        } else {
+          // Disable invalid Enter submissions
+          e.preventDefault();
+        }
+      }
+    }
+
+    function onKeyDown(e) {
+      if (e.key === "Escape") {
+        onCancel();
+      }
+    }
+
+    modalInput.addEventListener("input", onInputChange);
+    modalInput.addEventListener("keydown", onInputKeyDown);
+    modalSubmitBtn.addEventListener("click", onSubmit);
+    modalCancelBtn.addEventListener("click", onCancel);
+    document.addEventListener("keydown", onKeyDown);
+  });
+}
+
+
+async function promptForConnectionCodeModal() {
+  return modalPrompt("Enter the 4-digit Radio Connection Code displayed on the IQ Brain", /^\d{4}$/, 4);
+}
+
+async function promptForNewNameModal() {
+  return modalPrompt("Update Brain Name", /^\S+$/, 0, attrs.robotname ?? "");
+}
+
+function setAt(dest, src, pos) {
+  dest.set(src, pos);
+  return pos + src.length;
+}
+
+async function read_attribute_cmd(attrName) {
+// [WRITE] bytes: [c9 36 b8 47 56 2e 0a 72 6f 62 6f 74 6e 61 6d 65 00 33 72]  ascii:".6.GV..robotname.3r"
+// [NOTIFY] bytes: [aa 55 56 0a 2e 76 4b 6f 6c 62 65 00 39 90]  ascii:".UV..vKolbe.9."
+  const encoder = new TextEncoder();
+  const attr_bytes = encoder.encode(attrName + "\0");
+  const messageLength = attr_bytes.length;
+  const commandLength = COMMAND_HEADER_LEN + 3 + messageLength;
+  const command = new Uint8Array(new ArrayBuffer(commandLength));
+  var pos = 0;
+  pos = setAt(command, COMMAND_HEADER, pos);
+  pos = setAt(command, [0x56], pos);
+  pos = setAt(command, [0x2e], pos);
+  pos = setAt(command, [messageLength], pos);
+  pos = setAt(command, attr_bytes, pos);
+  await writeChar.writeValue(apply_crc(command));
+  mostRecentReadAttr = attrName;
+}
+
+async function write_attribute_cmd(attrName, value) {
+// [WRITE] bytes: [c9 36 b8 47 56 2f 10 72 6f 62 6f 74 6e 61 6d 65 00 4b 6f 6c 62 65 00 32 2e]  ascii:".6.GV/.robotname.Kolbe.2."
+// [NOTIFY] bytes: [aa 55 56 04 2f 76 d7 a4]  ascii:".UV./v.."
+  const encoder = new TextEncoder();
+  const attr_bytes = encoder.encode(attrName + "\0");
+  const name_bytes = encoder.encode(value + "\0");
+  const messageLength = attr_bytes.length + name_bytes.length;
+  const commandLength = COMMAND_HEADER_LEN + 3 + messageLength;
+  const command = new Uint8Array(new ArrayBuffer(commandLength));
+  var pos = 0;
+  pos = setAt(command, COMMAND_HEADER, pos);
+  pos = setAt(command, [0x56], pos);
+  pos = setAt(command, [0x2f], pos);
+  pos = setAt(command, [messageLength], pos);
+  pos = setAt(command, attr_bytes, pos);
+  pos = setAt(command, name_bytes, pos);
+  await writeChar.writeValue(apply_crc(command));
+}
+
+async function renameBrain() {
+  new_name = await promptForNewNameModal();
+  if (new_name === null) {
+    return;
+  }
+  await write_attribute_cmd("robotname", new_name);
+  log(`Brain renamed ${new_name}`);
+  await read_attribute_cmd("robotname");
+}
+
+async function queryDeviceInfo() {
+    if (!deviceInfoService) {
+      log('Not connected');
+      return;
+    }
+    const deviceInfoCharacteristics = await deviceInfoService.getCharacteristics();
+    for (char of deviceInfoCharacteristics) {
+      const name = deviceInfoNameByUuid[char.uuid] ?? char.uuid;
+      const val = await char.readValue();
+      const bytes = new Uint8Array(val.buffer);
+      let ascii = "";
+      for (const b of bytes) {
+        ascii += (b >= 32 && b < 127) ? String.fromCharCode(b) : ".";
+      }
+      log(`Read Device Info [${name}]: ${ascii}`);
+
+      if (char.uuid === SYSTEM_ID_CHAR_UUID) {
+        attrs.brainId = val.getUint32(0, true);
+        attrs.brainIdHexString = attrs.brainId.toString(16).padStart(8, '0');
+        log(`Brain ID: ${attrs.brainIdHexString}`);
+        // VM1546:184 [READ] bytes: [5a 8c c4 03 00 00 00 00]  ascii:"Z......."    First 4 bytes are BrainID? 0x03c48c5a = 63212634 
+        // Bluetooth pairing code is stored in Chrome local storage with this info: BLE_LOCK_KEY63212634 = 8376
+      }
+    }
+}
+
+function combineArrayBuffers(buffer1, buffer2) {
+  const totalLength = buffer1.byteLength + buffer2.byteLength;
+
+  const combinedBuffer = new ArrayBuffer(totalLength);
+
+  const view1 = new Uint8Array(buffer1);
+  const view2 = new Uint8Array(buffer2);
+  const combinedView = new Uint8Array(combinedBuffer);
+
+  combinedView.set(view1, 0); // Copy buffer1 data starting at index 0
+  combinedView.set(view2, buffer1.byteLength); // Copy buffer2 data after buffer1's data
+
+  return combinedBuffer;
+}
+
+
+fmt_for_data = {
+  0:  ["Axis A",  "b"],
+  1:  ["Axis B",  "b"],
+  2:  ["Axis C",  "b"],
+  3:  ["Axis D",  "b"],
+  4:  ["Heading", "f"],
+  5:  ["Rotation", "f"],
+  6:  ["Roll", "f"],
+  7:  ["Pitch", "f"],
+  8:  ["Yaw", "f"],
+  9:  ["ax", "f"],
+  10: ["ay", "f"],
+  11: ["az", "f"],
+  12: ["gx", "f"],
+  13: ["gy", "f"],
+  14: ["gz", "f"],
+};
+code_lens= {
+  "b": 1,
+  "B": 1,
+  "h": 2,
+  "H": 2,
+  "i": 4,
+  "I": 4,
+  "l": 4,
+  "L": 4,
+  "q": 8,
+  "Q": 8,
+  "e": 2,
+  "f": 4,
+  "d": 8,
+}
+function unpack_vals(data, index, length) {
+  for (let i = index; i < index+length && i < data.byteLength; i++) {
+    const code = data.getUint16(i);
+    const [name, fmt] = fmt_for_data[code];
+    const val_len = code_lens[fmt];
+    if (code == 4) {
+      var heading = data.getFloat32(i+2).toFixed(1).padStart(6, " ");
+      document.getElementById("heading").textContent = heading
+      //return;
+    }
+    i += val_len + 1;
+  }
+}
+
+function stdout_handler(event) {
+  const combinedBuffer = combineArrayBuffers(byteBuffer, event.target.value.buffer);
+  // clear byteBuffer, if we still need it, we will write into it again
+  byteBuffer = new ArrayBuffer(0);
+  const value = new DataView(combinedBuffer);
+  //console.log(value);
+  for (let i = 0; i < value.byteLength; i++) {
+    const byte = value.getUint8(i);
+    if (byte == 0)
+    {
+      // null byte starts new data packet
+      // next two bytes are length
+      if (i+2 < value.byteLength) {
+        var pack_len = value.getUint16(i+1);
+        if (i + pack_len < value.byteLength) {
+          // this is a full packet
+          unpack_vals(value, i+3, pack_len-2);
+          i += pack_len;
+        }
+        else {
+          // incomplete packet
+          // store in byteBuffer until next packet
+          byteBuffer = value.buffer.slice(i);
+          return;
+        }
+      }
+      else {
+        // incomplete packet, can't even read pack_len
+        // store in byteBuffer until next packet
+        byteBuffer = value.buffer.slice(i);
+        return;
+      }
+
+    }
+    else {
+      // non null byte, print in console
+      const charStr = String.fromCharCode(byte);
+      stdout.textContent += charStr;
+      stdout.scrollTop = logEl.scrollHeight;
+    }
+  }
+
+}
+
+// ===== Disconnect Brain =====
+function disconnect() {
+  if (brainDevice && brainDevice.gatt && brainDevice.gatt.connected) {
+      brainDevice.gatt.disconnect();
+      console.log(`Device ${attrs.robotname ?? ""} disconnected.`);
+      // Perform cleanup or UI updates here
+  }
+  brainDevice = null;
+  attrs = {};
+  writeChar = null;
+}
+
+// ===== Connect to Brain =====
+connectBtn.addEventListener('click', async () => {
+  try {
+    log('Looking for previously connected devices . . .')
+    log('Requesting Bluetooth device...');
+    brainDevice = await navigator.bluetooth.requestDevice({
+      filters: [{services: [1568]}],
+      optionalServices: [
+        VEX_IQ_SERVICE1_UUID,
+        DEVICE_INFO_SERVICE_UUID,
+        VEX_IQ_SERVICE2_UUID,
+      ]
+    });
+
+    log(`Device selected: ${brainDevice.name}`);
+    gattServer = await brainDevice.gatt.connect();
+    log('GATT connected');
+
+    brainDevice.addEventListener('gattserverdisconnected', (event) => {
+        disconnect();
+    });
+
+    deviceInfoService = await gattServer.getPrimaryService(DEVICE_INFO_SERVICE_UUID);
+    await queryDeviceInfo();
+
+    // [aa 55 56 09 2e 76 42 6c 75 65 00 1a 98]  ascii:".UV..vBlue..."
+    // [aa 55 56 0c 2e 76 42 6c 75 65 57 61 74 00 d0 3e]  ascii:".UV..vBlueWat..>"
+    const service = await gattServer.getPrimaryService(VEX_IQ_SERVICE1_UUID);
+    const handshake_char = await service.getCharacteristic(SPECIAL_HANDSHAKE_CHAR_UUID);
+
+    let pair_key = `BLE_LOCK_KEY${attrs.brainId.toString(10)}`;
+    log(`Looking for cookie: ${pair_key}`);
+    var pair_code = localStorage.getItem(pair_key);
+
+    do {
+      if (pair_code === null) {
+        // command the brain to display the "Bluetooth ID" pairing code
+        await handshake_char.writeValue(DISPLAY_PAIR_CODE_COMMAND);
+        // prompt the user to enter the pair code from the brain
+        pair_code = await promptForConnectionCodeModal();
+        if (pair_code === null) {
+          // canceled; clear the brain display and disconnect
+          await handshake_char.writeValue(CLEAR_PAIR_CODE_COMMAND);
+          disconnect();
+          return;
+        }
+      }
+      const PAIR_CODE_COMMAND = new Uint8Array([...pair_code].map(ch => Number(ch)));
+
+      await handshake_char.writeValue(PAIR_CODE_COMMAND);
+      const handshakeDataView = await handshake_char.readValue();
+      const handshakeArray = new Uint8Array(handshakeDataView.buffer);
+      if (handshakeArray.length != PAIR_CODE_COMMAND.length) {
+        log('Handshake readback failed; length mismatch');
+        pair_code = null;
+      }
+      else {
+        for (let i = 0; i < handshakeArray.length; i++) {
+          if (handshakeArray[i] !== PAIR_CODE_COMMAND[i]) {
+            log('Handshake readback failed; data mismatch');
+            pair_code = null;
+          }
+        }
+      }
+
+    } while (pair_code === null)
+
+    // pairing successful; store/update the code
+    log(`Storing code: ${pair_code} to key: ${pair_key}`);
+    localStorage.setItem(pair_key, pair_code);
+
+    const replyChar = await service.getCharacteristic(REPLY_CHANNEL_UUID);
+    if (replyChar.properties.notify) {
+      replyChar.addEventListener('characteristicvaluechanged', reply_handler);
+    }
+
+    const stdoutChar = await service.getCharacteristic(STDOUT_CHANNEL_UUID);
+    if (stdoutChar.properties.notify) {
+      stdoutChar.addEventListener('characteristicvaluechanged', stdout_handler);
+    }
+    
+    const characteristics = await service.getCharacteristics();
+    for (const char of characteristics) {
+      if (char.properties.notify) {
+        await char.startNotifications();
+        log(`[Notify] Subscribed to ${char.uuid}`);
+      }
+    }
+
+    writeChar = await service.getCharacteristic(WRITE_CHAR_UUID);
+    log('Write characteristic ready');
+
+    await read_attribute_cmd("robotname");
+
+    // Command format
+    // Examples:
+    //   [WRITE] bytes: [c9 36 b8 47 a4]  ascii:".6.G."
+    //   [WRITE] bytes: [c9 36 b8 47 56 2e 0a 72 6f 62 6f 74 6e 61 6d 65 00 33 72]  ascii:".6.GV..robotname.3r"
+    // decompose:
+    // c9 36 b8 47 = 4-byte command header
+    // command byte:
+    //   a4: ? a query for specific data ID? (no additional bytes after)
+    //   56: query a specific property by name/str, such as robotname??
+    // subcommand / file code: ??
+    //   2e: ??
+    // length (1 byte?)
+    //   0a = 10 bytes
+    // payload
+    //   0x72,0x6f,0x62,0x6f,0x74,0x6e,0x61,0x6d,0x65,0x00 = "robotname\0"
+    // checksum (2 bytes) CRC-CCITT (XModem)
+    //   33 72
+
+//***********    await writeChar.writeValue(new Uint8Array([0xc9,0x36,0xb8,0x47,0xa4]));
+//***********    await writeChar.writeValue(new Uint8Array([0xc9,0x36,0xb8,0x47,0x56,0x2e,0x0a,0x72,0x6f,0x62,0x6f,0x74,0x6e,0x61,0x6d,0x65,0x00,0x33,0x72]));
+                                          // [WRITE] bytes: [ c9   36   b8   47   56   2e   0a   72   6f   62   6f   74   6e   61   6d   65   00   00   00   0e  13]  ascii:".6.GV..robotname....."
+
+  //  [WRITE] bytes: [c9 36 b8 47 56 18 1a 01 00 5f 5f 5f 73 5f 30 30 2e 62 69 6e 2e 62 69 6e 00 00 00 00 00 00 00 00 00 62 95]  ascii:".6.GV....___s_00.bin.bin.........b."
+  //  [WRITE] bytes: [c9 36 b8 47 56 18 1a 01 00 5f 5f 5f 73 5f 30 30 2e 62 69 6e 2e 62 69 6e 00 00 00 00 00 00 00 00 62 95]  ascii:".6.GV....___s_00.bin.bin........b."
+
+// [WRITE] bytes: [c9 36 b8 47 56 18 1a 01 80 6e 75 6c 6c 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 a5 68]  ascii:".6.GV....null.....................h"
+// [WRITE] bytes: [c9 36 b8 47 56 18 1a 01 80 6e 75 6c 6c 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 a5 68]  ascii:".6.GV....null.................h"
+  // Response format:
+    // Examples:
+    //   [NOTIFY] bytes: [aa 55 a4 08 01 00 09 01 00 20 00 00]  ascii:".U....... .."
+    //   [NOTIFY] bytes: [aa 55 56 12 2e 76 4b 6f 6c 62 65 73 42 72 61 69 6e 35 34 00 b6 b9]  ascii:".UV..vKolbesBrain54..."
+    // decompose:
+    // aa 55  (always same header?)
+    // echo command byte?
+    //   a4: ?? (no additional bytes after)
+    //   56: query a specific property by name/str, such as robotname??
+    // length (1 byte?)
+    //   08 = 8 bytes
+    //   12 = 18 bytes
+    // payload:
+    //   01 00 09 01 00 20 00 00   = possibly VEXos 1.0.9; then 1.0.32.0.0 ??
+    //   2e 76 4b 6f 6c 62 65 73 42 72 61 69 6e 35 34 00 = 0x2e 0x76 KolbesBrain54\0
+    //         K  o  l  b  e  s  B  r  a  i  n  5  4  \0
+    //     2e matches 2e from the command (slightly different position, before/after length)
+    // checksum (2 bytes?) CRC-CCITT (XModem)
+    //   b6 b9
+
+  } catch (e) {
+    log('Error: ' + e);
+  }
+});
+
+// ===== Start Button =====
+startBtn.addEventListener('click', async () => {
+  if (!writeChar) return log('Not connected');
+  const slotNum = parseInt(slotPicker.value, 10)
+  const slotIndex = slotNum - 1; // convert to 0-index
+  const cmd = START_COMMANDS[slotIndex];
+  if (!cmd) { log("No start command for this slot"); return; }
+  await writeChar.writeValue(apply_crc(cmd));
+  log(`Run command sent to Slot ${slotNum}`);
+});
+
+// ===== Stop Button =====
+stopBtn.addEventListener('click', async () => {
+  if (!writeChar) return log('Not connected');
+  await writeChar.writeValue(apply_crc(STOP_COMMAND));
+  log('Stop command sent');
+});
+
+// ===== Clear Button =====
+clearBtn.addEventListener('click', clearLog);
+
+// ===== Bob Button ====
+renameBtn.addEventListener('click', renameBrain);
+
+
+</script>
+
+</body>
+</html>
