@@ -520,6 +520,20 @@ const renameBtn = document.getElementById("rename");
 const stdout = document.getElementById('stdout');
 const logEl = document.getElementById('log');
 
+function enable_buttons() {
+  startBtn.disabled = false;
+  stopBtn.disabled  = false;
+  renameBtn.disabled = false;
+}
+
+function disable_buttons() {
+  startBtn.disabled = true;
+  stopBtn.disabled  = true;
+  renameBtn.disabled = true;
+}
+
+disable_buttons()
+
 function log(msg) {
   const line = document.createElement('div');
   line.textContent = msg;
@@ -831,6 +845,7 @@ function stdout_handler(event) {
 
 // ===== Disconnect Brain =====
 function disconnect() {
+  disable_buttons();
   if (brainDevice && brainDevice.gatt && brainDevice.gatt.connected) {
       brainDevice.gatt.disconnect();
       console.log(`Device ${attrs.robotname ?? ""} disconnected.`);
@@ -934,6 +949,8 @@ connectBtn.addEventListener('click', async () => {
     log('Write characteristic ready');
 
     await read_attribute_cmd("robotname");
+
+    enable_buttons()
 
     // Command format
     // Examples:
