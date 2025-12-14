@@ -1,0 +1,9 @@
+decodeGetUserSlot
+
+// does the existing catalog address match the program ?
+if (!this.validateCatalogAddress()) {
+
+
+cdc.downloadExit
+
+cdcValidateIQMessage

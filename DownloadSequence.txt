@@ -2,24 +2,242 @@ Download Sequence
 
 All values written to 08590f7e-db05-467e-8757-72f6faeb13f5
 
+message_types:
+21: ? 
+56: attribute program/read?; has sub-command_ids
+a4: ask for VexOS version?
+
 command_id's:
 2e: read attribute by name
 2f: write attribute by name
+11: select file to write; slot_1.ini or slot_1.bin
+13: write file contents
+12: ini file complete?
+15: set something about python_vm.bin? response is simple success
 18: start/stop commands
-19: ??
-21: Begin Download ?
+19: query something about python_vm.bin ? large response back
 
 w_header: c9 36 b8 47
 r_header: aa 55
 
-1) Write: w_header + 21
+QUERY1
+[WRITE 1]: (m_type:21)  w_header + 21
 
-2) Write: w_header + 56 19 + 1a (len 26) + data + c2 c6 (crc)
-40 00 70 79 74 68 6f 6e 5f 76 6d 2e 62 69 6e 00 00 00 00 00 00 00 00 00 00 00
- @ \0  p  y  t  h  o  n  _  v  m  .  b  i  n NUL*11
-
-3) Reply to #1 (cmd:21): r_header + 21 + 0a (len 10) + 00 00 01 00 00 00 00 00 00 06
+[NOTIFY 1]: (m_type:21): r_header + 21 + 0a (len 10) + data
+data: 00 00 01 00 00 00 00 00 00 06
 No CRC on this message
 
-4) Reply to #2 (cmd:56 xx 19): r_header + 56 35 19 + 76 (success) +
-40 40 00 00 00 00 00 80 03 1e 4c 69 fa 62 69 6e 00 00 00 00
+
+FILE_GET_INFO
+[WRITE 2]: (cmd:56, command_id:19)
+w_header + 56 19 + 1a (len 26) + data + c2 c6 (crc)
+data: 40 00 70 79 74 68 6f 6e 5f 76 6d 2e 62 69 6e 00 00 00 00 00 00 00 00 00 00 00
+       @ \0  p  y  t  h  o  n  _  v  m  .  b  i  n NUL*11
+
+[NOTIFY 2a]: (m_type:56, command_id:19):
+r_header + 56 + 35 (len 53) + 19 + 76 (success) + data (only 20 bytes)
+data: 40 40 00 00 00 00 00 80 03 1e 4c 69 fa 62 69 6e 00 00 00 00
+       @  @                          L  i     b  i  n \0   
+Does length 0x35 (53) include?:
+command_id (0x19)
+success_code (0x76)
+20 bytes (this message)
+29 bytes (next message #6)
+2 bytes (crc, next message #6)
+
+[NOTIFY 2b]: data (29 bytes) + 98 7f (crc?)
+data: 00 15 00 00 01 70 79 74 68 6f 6e 5f 76 6d 2e 62 69 6e 00 ff ff ff ff ff ff ff ff ff ff
+                      p  y  t  h  o  n  _  v  m  .  b  i  n \0
+
+
+
+[WRITE 3]: STOP_COMMAND
+w_header + 56 18 + 1a (len 26) + data + a5 68 (crc)
+data: 01 80 6e 75 6c 6c 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 
+             n  u  l  l
+
+[NOTIFY 3]: STOP_COMMAND success
+r_header + 56 + 04 (len 4) + 18 + 76 (success) + 4b a6 (crc)
+
+
+
+[WRITE 4]: (m_type:21)  w_header + 21
+
+[NOTIFY 4]: (m_type:21): r_header + 21 + 0a (len 10) + data
+data: 00 00 01 00 00 00 00 00 00 07
+(NOTE: 07 vs 06 on [NOTIFY 1]; what does it mean?)
+
+
+Tell the brain which file we will write to: slot_1.ini
+[WRITE 5]: (m_type:56, command_id:11) 
+w_header + 56 11 + 34 (len 52) + data + 77 d0 (crc)
+data: 01 01 01 01 6a 01 00 00 00 00 30 10 b5 51 f9 e9 69 6e 69 00 5d 88 d0 30 01 00 00 00 73 6c 6f 74 5f 31 2e 69 6e 69 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+                   j                 0        Q        i  n  i     ]        0              s  l  o  t  _  1  .  i  n  i                                               
+
+[NOTIFY 5]: (m_type:56, command_id:11) 
+r_header + 56 + 0e (len 14) + 11 (command_id) + 76 (Sucess) + data + b8 1c (crc)
+data: e8 00 00 80 01 00 b5 51 f9 e9 
+NOTE: The 'b5 51 f9 e9' is echoed from the WRITE command
+
+
+
+[WRITE 6]: Write ini file?
+(m_type:56, command_id:13) 
+w_header + 56 13 + 80 (len 128) + data + 30 7e (crc)
+data: 
+ec 00 00 30 10  (loadaddr: 0x10300000 ???)
+          0   
+3b 0a
+; \n
+3b 20 56 45 58 20 70 72 6f 67 72 61 6d 20 69 6e 69 20 66 69 6c 65 0a 
+ ;     V  E  X     p  r  o  g  r  a  m     i  n  i     f  i  l  e \n
+3b 20 43 6f 70 79 72 69 67 68 74 20 28 63 29 20 32 30 31 37 2d 32 30 32 31 20 56 45 58 20 52 6f 62 6f 74 69 63 73 0a 
+ ;     C  o  p  y  r  i  g  h  t     (  c  )     2  0  1  7  -  2  0  2  1     V  E  X     R  o  b  o  t  i  c  s  
+3b 0a 
+ ; \n
+5b 70 72 6f 6a 65 63 74 5d 0a 
+ [  p  r  o  j  e  c  t  ] \n
+76 65 72 73 69 6f 6e 20 20 20 20 20 20 3d 20 22 31 22 0a
+ v  e  r  s  i  o  n                    =     "  1  " \n
+69 64 65 20 20 20 20 20 20 20 20 20 20 3d 20 22 50 79 74 68 6f 6e 22 0a
+ide          = "Python"
+66 69 6c 65 20 20 20 20 20 20 20 20 20 3d 20 22 6e 6f 6e 65 22 0a
+file         = "none"
+3b 0a 
+ ; \n
+5b 70 72 6f 67 72 61 6d 5d 0a
+[program]
+76 65 72 73 69 6f 6e 20 20 20 20 20 20 3d 20 22 31 22 0a
+version      = "1"
+6e 61 6d 65 20 20 20 20 20 20 20 20 20 3d 20 22 4e 65 77 54 65 73 74 22 0a
+name         = "NewTest"
+73 6c 6f 74 20 20 20 20 20 20 20 20 20 3d 20 22 30 22 0a
+slot         = "0"
+69 63 6f 6e 20 20 20 20 20 20 20 20 20 3d 20 22 
+icon         = "
+
+[NOTIFY 6]: Succesfully recieved first chunk of .ini file
+(m_type:56, command_id:13) 
+r_header + 56 + 04 (len 4) + 13 + 76 (success) + 97 5c (crc)
+
+
+
+Write more/rest of ini file?:
+[WRITE 7]: (m_type:56, command_id:13) 
+w_header + 56 + 13 + 80 (len 128) + data + c2 5f (crc)
+data:
+88 e8 00 30 10
+
+55 53 45 52 39 32 35 78 2e 62 6d 70 22 0a
+ U  S  E  R  9  2  5  x  .  b  m  p  " \n
+64 65 73 63 72 69 70 74 69 6f 6e 20 20 3d 20 22 22 0a
+description  = ""
+64 61 74 65 20 20 20 20 20 20 20 20 20 3d 20 22 32 30 32 35 2d 31 32 2d 31 33 54 32 30 3a 32 36 3a 30 35 2e 30 38 30 5a 22 0a
+date         = "2025-12-13T20:26:05.080Z"
+74 69 6d 65 7a 6f 6e 65 20 20 20 20 20 3d 20 22 2d 30 35 3a 30 30 22 0a
+timezone     = "-05:00"
+3b 0a
+ ; \n
+5b 63 6f 6e 66 69 67 5d 0a
+ [  c  o  n  f  i  g  ] \n
+70 6f 72 74 5f 32 32 20 20 20 20 20 20 3d 20 22 61 64 69 22 0a
+ p  o  r  t  _  2  2                    =     "  a  d  i  " \n
+00 00
+
+[NOTIFY 7]: Succesfully recieved second chunk of .ini file
+(m_type:56, command_id:13) 
+r_header + 56 + 04 (len 4) + 13 + 76 (success) + 97 5c (crc)
+
+
+
+[WRITE 8]: (m_type:56, command_id:12) 
+w_header + 56 + 12 + 01 (len 1) + 03 (data) + 56 51 (crc)
+
+[NOTIFY 8]: (m_type:56, command_id:12) 
+r_header + 56 + 04 (len 4) + 12 + 76 (success) + a4 6d (crc)
+
+
+
+[WRITE 9]: (m_type:21)  w_header + 21
+
+[NOTIFY 9]: (m_type:21): r_header + 21 + 0a (len 10) + data
+data: 00 00 01 00 00 00 00 00 00 08
+No CRC on this message
+Note: The 08 is uunique; we've seen 06 and 07 before
+
+
+Tell the brain which file we will write to: slot_1.bin
+[WRITE 10]: (m_type:56, command_id:11) 
+w_header + 56 + 11 + 34 (len 52) + data + 15 09 (crc)
+01 01 01 01 d7 0a 00 00 00 00 30 10 fd 56 62 13 62 69 6e 61 5d 88 d0 30 01 00 00 00 73 6c 6f 74 5f 31 2e 62 69 6e 00 00 00 00 00 00 00 00 00 00 00 00 00 00 
+                               0        V  b     b  i  n  a  ]        0              s  l  o  t  _  1  .  b  i  n                                          
+(loadaddr: 0x10300000 ???)
+
+
+[NOTIFY 10]: (m_type:56, command_id:11) 
+r_header + 56 + 0e (len 14) + 11 (command_id) + 76 (success) + data + 5c 97 (crc)
+data: e8 00 00 80 01 00 fd 56 62 13 
+The 'fd 56 62 13' is echoed from the WRITE command
+
+
+
+
+Start writing python file contents:
+[WRITE 11]: 
+w_header + 56 + 13 + 80 (len 128) + data + 5a 75 (crc)
+data:
+ec 00 00 30 10    (loadaddr: 0x10300000 ???)
+
+23 72 65 67 69 6f 6e 20 56 45 58 63 6f 64 65 20 47 65 6e 65 72 61 74 65 64 20 52 6f 62 6f 74 20 43 6f 6e 66 69 67 75 72 61 74 69 6f 6e 0a
+#region VEXcode Generated Robot Configuration
+66 72 6f 6d 20 76 65 78 20 69 6d 70 6f 72 74 20 2a 0a
+from vex import *
+69 6d 70 6f 72 74 20 75 72 61 6e 64 6f 6d 0a
+import urandom
+69 6d 70 6f 72 74 20 6d 61 74 68 0a
+import math
+0a
+\n
+23 20 42 72 61 69 6e 20 73 68 6f 75 6c 64 20 62 65 20 64 65 66 69 6e 65 64 20 62 79 20 64 65 66 61 75 6c 74 0a
+# Brain should be defined by default
+62 72 61 69 6e 3d 42 72 61 69 6e 28 29 0a
+brain=Brain()
+0a
+\n
+23 20 52 6f 62 6f 74 20 63 6f 6e 66 69 67 75 72 61 74 69 6f 6e 20 63 6f 64 65 0a
+# Robot configuration code
+62 72 61 69 6e 5f 69 6e 65 72 74 69 61 6c 20 3d 20 49 6e 65 72 74 69 61 6c 28 29 0a
+brain_inertial = Inertial()
+0a
+\n
+0a
+\n
+0a
+\n
+23 20 67 65 6e 65 72 61 74 69 6e 67 20 61 6e 64 20 73 65 74 74 69 6e 67 20 72 61 6e 64 6f
+# generating and setting rando
+
+
+
+
+
+repeat Writes to 56 13 in 128 byte chunks
+if you don't have enough for a full 128 bytes, fill the rest is null bytes
+
+
+Finalize?
+[WRITE]: (m_type:56, command_id:15) 
+w_header + 56 + 15 (command_id) + 1a (len 26) + data + 64 17 (crc)
+data: 40 00 70 79 74 68 6f 6e 5f 76 6d 2e 62 69 6e 00 00 00 00 00 00 00 00 00 00 00 
+       @     p  y  t  h  o  n  _  v  m  .  b  i  n
+
+
+File complete?
+[WRITE]: (m_type:56, command_id:12) 
+w_header + 56 + 12 + 01 (len 1) + 03 (data) + 56 51 (crc)
+
+
+
+
+
+

@@ -1,0 +1,72 @@
+VM660:5 [BLE Hook] Installing...
+VM660:190 [BLE Hook ready]
+undefined
+VM660:11 [BLE Hook] requestDevice options: {filters: Array(1), optionalServices: Array(3), acceptAllDevices: false}
+VM660:14 [BLE Hook] Device selected: BluetoothDevice {id: 'gsCSj9iVlJFL0VnOHlrr1w==', name: 'KolbesB', gatt: BluetoothRemoteGATTServer, ongattserverdisconnected: null}
+VM660:21 [BLE Hook] gatt.connect()
+VM660:24 [BLE Hook] GATT connected: BluetoothRemoteGATTServer {device: BluetoothDevice, connected: true, connect: ƒ}
+VM660:48 [BLE Hook] getPrimaryServices()
+VM660:51 [BLE Hook] → returned services: (2) [BluetoothRemoteGATTService, BluetoothRemoteGATTService]
+VM660:70 [BLE Hook] Hooking service: 08590f7e-db05-467e-8757-72f6faeb13d5
+VM660:70 [BLE Hook] Hooking service: 0000180a-0000-1000-8000-00805f9b34fb
+VM660:85 [BLE Hook]   getCharacteristics()
+VM660:100 [BLE Hook]     Hooking characteristic: 08590f7e-db05-467e-8757-72f6faeb1306
+VM660:100 [BLE Hook]     Hooking characteristic: 08590f7e-db05-467e-8757-72f6faeb1316
+VM660:100 [BLE Hook]     Hooking characteristic: 08590f7e-db05-467e-8757-72f6faeb1326
+VM660:100 [BLE Hook]     Hooking characteristic: 08590f7e-db05-467e-8757-72f6faeb13e5
+VM660:100 [BLE Hook]     Hooking characteristic: 08590f7e-db05-467e-8757-72f6faeb13f5
+VM660:85 [BLE Hook]   getCharacteristics()
+VM660:100 [BLE Hook]     Hooking characteristic: 00002a23-0000-1000-8000-00805f9b34fb
+VM660:100 [BLE Hook]     Hooking characteristic: 00002a24-0000-1000-8000-00805f9b34fb
+VM660:100 [BLE Hook]     Hooking characteristic: 00002a26-0000-1000-8000-00805f9b34fb
+VM660:100 [BLE Hook]     Hooking characteristic: 00002a27-0000-1000-8000-00805f9b34fb
+VM660:100 [BLE Hook]     Hooking characteristic: 00002a28-0000-1000-8000-00805f9b34fb
+VM660:100 [BLE Hook]     Hooking characteristic: 00002a29-0000-1000-8000-00805f9b34fb
+VM660:100 [BLE Hook]     Hooking characteristic: 00002a2a-0000-1000-8000-00805f9b34fb
+VM660:100 [BLE Hook]     Hooking characteristic: 00002a50-0000-1000-8000-00805f9b34fb
+VM660:100 [BLE Hook]     Hooking characteristic: 00006a51-0000-1000-8000-00805f9b34fb
+VM660:110 [BLE Hook]     readValue: 00002a23-0000-1000-8000-00805f9b34fb
+VM660:184 [READ] bytes: [5a 8c c4 03 00 00 00 00]  ascii:"Z......."
+VM660:110 [BLE Hook]     readValue: 00002a24-0000-1000-8000-00805f9b34fb
+VM660:184 [READ] bytes: [56 45 58 20 49 51 32 20 43 4e 54 52]  ascii:"VEX IQ2 CNTR"
+VM660:110 [BLE Hook]     readValue: 00002a26-0000-1000-8000-00805f9b34fb
+VM660:184 [READ] bytes: [31 2e 30 2e 30 2e 42 4e]  ascii:"1.0.0.BN"
+VM660:110 [BLE Hook]     readValue: 00002a27-0000-1000-8000-00805f9b34fb
+VM660:184 [READ] bytes: [4b 6f 6c 62 65 73 42]  ascii:"KolbesB"
+VM660:110 [BLE Hook]     readValue: 00002a28-0000-1000-8000-00805f9b34fb
+VM660:184 [READ] bytes: [31 2e 30 2e 30 2e 42 4e]  ascii:"1.0.0.BN"
+VM660:110 [BLE Hook]     readValue: 00002a29-0000-1000-8000-00805f9b34fb
+VM660:184 [READ] bytes: [56 45 58 20 52 6f 62 6f 74 69 63 73]  ascii:"VEX Robotics"
+VM660:122 [BLE Hook]     writeValue: 08590f7e-db05-467e-8757-72f6faeb13e5
+VM660:180 [WRITE] [unknown type] ArrayBuffer(4)
+VM660:110 [BLE Hook]     readValue: 08590f7e-db05-467e-8757-72f6faeb13e5
+VM660:184 [READ] bytes: [08 03 07 06]  ascii:"...."
+VM660:145 [BLE Hook]     startNotifications: 08590f7e-db05-467e-8757-72f6faeb1306
+VM660:145 [BLE Hook]     startNotifications: 08590f7e-db05-467e-8757-72f6faeb1316
+VM660:110 [BLE Hook]     readValue: 00002a23-0000-1000-8000-00805f9b34fb
+VM660:184 [READ] bytes: [5a 8c c4 03 00 00 00 00]  ascii:"Z......."
+VM660:110 [BLE Hook]     readValue: 00002a24-0000-1000-8000-00805f9b34fb
+VM660:184 [READ] bytes: [56 45 58 20 49 51 32 20 43 4e 54 52]  ascii:"VEX IQ2 CNTR"
+VM660:110 [BLE Hook]     readValue: 00002a26-0000-1000-8000-00805f9b34fb
+VM660:184 [READ] bytes: [31 2e 30 2e 30 2e 42 4e]  ascii:"1.0.0.BN"
+VM660:110 [BLE Hook]     readValue: 00002a27-0000-1000-8000-00805f9b34fb
+VM660:184 [READ] bytes: [4b 6f 6c 62 65 73 42]  ascii:"KolbesB"
+VM660:110 [BLE Hook]     readValue: 00002a28-0000-1000-8000-00805f9b34fb
+VM660:184 [READ] bytes: [31 2e 30 2e 30 2e 42 4e]  ascii:"1.0.0.BN"
+VM660:110 [BLE Hook]     readValue: 00002a29-0000-1000-8000-00805f9b34fb
+VM660:184 [READ] bytes: [56 45 58 20 52 6f 62 6f 74 69 63 73]  ascii:"VEX Robotics"
+VM660:122 [BLE Hook]     writeValue: 08590f7e-db05-467e-8757-72f6faeb13f5
+VM660:184 [WRITE] bytes: [c9 36 b8 47 a4]  ascii:".6.G."
+VM660:122 [BLE Hook]     writeValue: 08590f7e-db05-467e-8757-72f6faeb13f5
+VM660:184 [WRITE] bytes: [c9 36 b8 47 56 2e 0a 72 6f 62 6f 74 6e 61 6d 65 00 33 72]  ascii:".6.GV..robotname.3r"
+VM660:184 [NOTIFY] bytes: [aa 55 a4 08 01 00 09 01 00 20 00 00]  ascii:".U....... .."
+VM660:184 [NOTIFY] bytes: [aa 55 56 12 2e 76 4b 6f 6c 62 65 73 42 72 61 69 6e 35 34 00 b6 b9]  ascii:".UV..vKolbesBrain54..."
+VM660:122 [BLE Hook]     writeValue: 08590f7e-db05-467e-8757-72f6faeb13f5
+VM660:184 [WRITE] bytes: [c9 36 b8 47 56 18 1a 01 00 5f 5f 5f 73 5f 30 31 2e 62 69 6e 2e 62 69 6e 00 00 00 00 00 00 00 00 00 92 a4]  ascii:".6.GV....___s_01.bin.bin..........."
+VM660:184 [NOTIFY] bytes: [aa 55 56 04 18 76 4b a6]  ascii:".UV..vK."
+VM660:184 [NOTIFY] bytes: [0d 0a 4d 69 63 72 6f 50 79 74 68 6f 6e 20 76 31 2e 31 33 2d 33 39 31 2d 67 38 64 32 63 35 33 30 66 61 2d 64 69 72 74 79 20 6f 6e 20 32 30 32 35 2d 30 35 2d 32 37 3b 20 56 65 78 20 49 51 32 20 77 69 74 68 20 43 6f 72 74 65 78 20 4d 34]  ascii:"..MicroPython v1.13-391-g8d2c530fa-dirty on 2025-05-27; Vex IQ2 with Cortex M4"
+VM660:184 [NOTIFY] bytes: [0d 0a 54 79 70 65 20 22 68 65 6c 70 28 29 22 20 66 6f 72 20 6d 6f 72 65 20 69 6e 66 6f 72 6d 61 74 69 6f 6e 2e 0d 0a 3e 3e 3e 20]  ascii:"..Type "help()" for more information...>>> "
+VM660:184 [NOTIFY] bytes: [65 76 65 6e 74 20 30 30 30 30 30 30 31 46 20 30 30 30 30 30 30 30 31 20 3c 66 75 6e 63 74 69 6f 6e 20 70 72 69 6e 74 5f 6e 75 6d 20 61 74 20 30 78 32 30 30 31 62 64 36 30 3e 0d 0a]  ascii:"event 0000001F 00000001 <function print_num at 0x2001bd60>.."
+VM660:122 [BLE Hook]     writeValue: 08590f7e-db05-467e-8757-72f6faeb13f5
+VM660:184 [WRITE] bytes: [c9 36 b8 47 56 18 1a 01 80 6e 75 6c 6c 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 a5 68]  ascii:".6.GV....null.....................h"
+VM660:184 [NOTIFY] bytes: [aa 55 56 04 18 76 4b a6]  ascii:".UV..vK."
