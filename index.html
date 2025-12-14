@@ -10,6 +10,19 @@
          height: 400px; overflow-y: scroll; font-family: monospace; }
   #log { border: 1px solid #ccc; background: #111; color: #0f0; padding: 10px;
          height: 200px; overflow-y: scroll; font-family: monospace; }
+  #structured { white-space: pre;}
+
+  .controls {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;            /* space between rows */
+  }
+
+  .row {
+    display: flex;
+    gap: 2px;            /* space between buttons */
+    align-items: center;
+  }
 
   /* Dimmed background */
   .modal-backdrop {
@@ -103,25 +116,31 @@
 <body>
 
 <h2>VEX IQ BLE Control</h2>
+<div class="controls">
+  <div class="row">
+    <button id="connectBtn">Connect</button>
+    <button id="rename">Rename</button>
+  </div>
 
-<button id="connectBtn">Connect to Brain</button>
-<select id="slotPicker">
-  <option value="1">Slot 1</option>
-  <option value="2">Slot 2</option>
-  <option value="3">Slot 3</option>
-  <option value="4">Slot 4</option>
-  <option value="5">Slot 5</option>
-  <option value="6">Slot 6</option>
-  <option value="7">Slot 7</option>
-  <option value="8">Slot 8</option>
-</select>
-<button id="startBtn">Start</button>
-<button id="stopBtn">Stop</button>
-<button id="clearBtn">Clear</button>
-<button id="rename">Rename</button>
+  <div class="row">
+    <select id="slotPicker">
+      <option value="1">Slot 1</option>
+      <option value="2">Slot 2</option>
+      <option value="3">Slot 3</option>
+      <option value="4">Slot 4</option>
+      <option value="5">Slot 5</option>
+      <option value="6">Slot 6</option>
+      <option value="7">Slot 7</option>
+      <option value="8">Slot 8</option>
+    </select>
+    <button id="startBtn">Start</button>
+    <button id="stopBtn">Stop</button>
+    <button id="clearBtn">Clear</button>
+  </div>
+</div>
+<div id="structured"></div>
 
 <h3>Brain Console</h3>
-<span id="heading">Waiting on brain . . .</span>
 <div id="stdout"></div>
 <h3>Log</h3>
 <div id="log"></div>
@@ -397,21 +416,43 @@ function reply_handler(event) {
     console.log(`Unexpected header: ${header}`);
     return;
   }
-  const code = data.getUint8(2);
-  if (code == 0xa4) {
+  const message_type = data.getUint8(2);
+  if (message_type == 0xa4) {
     // [aa 55 a4 08 01 00 09 01 00 20 00 00]  ascii:".U....... .."
     console.log("Received VexOS Version")
     // add version decoding later
     return;
   }
-  if (code != 0x56) {
-    console.log(`Unknown code ${code}`);
+  if (message_type != 0x56) {
+    console.log(`Unknown message_type ${message_type}`);
     return;
   }
   if (!validate_crc(data)) {
     console.log("Reply notification has corrupted CRC");
     return;
   }
+/*
+    key: "cdc2MessageGetLength",
+    value: function cdc2MessageGetLength(msg) {
+      // get message length
+      var length_msb = 0;
+      var length_lsb = msg[3];
+
+      // see if first byte has msb set
+      if (length_lsb & 0x80) {
+        // 16 bit length
+        length_msb = length_lsb & 0x7F;
+        length_lsb = msg[4];
+      }
+      var length = (length_msb << 8) + length_lsb;
+      return length;
+    }
+*/
+
+
+
+
+
   if (!validate_length(data, 3)) {
     console.log(`Bad length/message: ${data}`);
   }
@@ -506,19 +547,28 @@ const START_COMMANDS = {
   6: new Uint8Array([0xc9,0x36,0xb8,0x47,0x56,0x18,0x1a,0x01,0x00,0x5f,0x5f,0x5f,0x73,0x5f,0x30,0x36,0x2e,0x62,0x69,0x6e,0x2e,0x62,0x69,0x6e,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00]),
   7: new Uint8Array([0xc9,0x36,0xb8,0x47,0x56,0x18,0x1a,0x01,0x00,0x5f,0x5f,0x5f,0x73,0x5f,0x30,0x37,0x2e,0x62,0x69,0x6e,0x2e,0x62,0x69,0x6e,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00]),
 };
+// 01 00 5f 5f 5f 73 5f 30 30 2e 62 69 6e 2e 62 69 6e
+//        _  _  _  s  _  0  0  .  b  i  n  .  b  i  n
+// ___s_00.bin.bin
+//       ^ this digit is slot, 0-7
 
 const STOP_COMMAND = new Uint8Array([0xc9,0x36,0xb8,0x47,0x56,0x18,0x1a,0x01,0x80,0x6e,0x75,0x6c,0x6c,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00]); // 0xa5,0x68
+//  01 80 6e 75 6c 6c
+//         n  u  l  l
+// null
+
 
 // ===== DOM Elements =====
 const statusEl = document.getElementById("status");
 const connectBtn = document.getElementById("connectBtn");
+const renameBtn = document.getElementById("rename");
 const slotPicker = document.getElementById("slotPicker");
 const startBtn = document.getElementById("startBtn");
 const stopBtn = document.getElementById("stopBtn");
 const clearBtn = document.getElementById('clearBtn')
-const renameBtn = document.getElementById("rename");
 const stdout = document.getElementById('stdout');
 const logEl = document.getElementById('log');
+const dataEl = document.getElementById('structured');
 
 function enable_buttons() {
   startBtn.disabled = false;
@@ -571,6 +621,19 @@ function modalPrompt(prompt, regex, input_max_len=0, default_input="") {
     backdrop.style.display = "flex";
     document.body.style.overflow = "hidden";
     modalInput.value = default_input;
+    if (input_max_len === null) {
+      console.warn(`Look over here!`);
+      modalInput.disabled = true;
+      modalInput.style.display = 'none';
+      modalSubmitBtn.classList.add("enabled");
+      modalSubmitBtn.disabled = false;
+    }
+    else {
+      modalInput.disabled = false;
+      modalInput.style.display = 'block';
+      modalSubmitBtn.disabled = true;
+      modalSubmitBtn.classList.remove("enabled");
+    }
     if (input_max_len <= 0) {
       modalInput.removeAttribute("maxLength");
     }
@@ -578,8 +641,8 @@ function modalPrompt(prompt, regex, input_max_len=0, default_input="") {
       modalInput.maxLength = input_max_len;
     }
     modalInput.classList.remove("invalid");
-    modalSubmitBtn.disabled = true;
-    modalSubmitBtn.classList.remove("enabled");
+    
+    
     requestAnimationFrame(() => modalInput.focus()); // Focus after render
 
     function cleanup() {
@@ -616,18 +679,21 @@ function modalPrompt(prompt, regex, input_max_len=0, default_input="") {
         return v;
       }
       else {
+        console.warn("invalid");
         return "";
       }
     }
 
     function onSubmit() {
-      const v = getValidInput();
-      if (!v) {
-        modalInput.classList.add("invalid");
-        return;
-      }
+      if (input_max_len !== null) {
+        const v = getValidInput();
+        if (!v) {
+          modalInput.classList.add("invalid");
+          return;
+        }
+    }
       cleanup();
-      resolve(v);
+      resolve(modalInput.value);
     }
 
     function onCancel() {
@@ -666,7 +732,16 @@ async function promptForConnectionCodeModal() {
 }
 
 async function promptForNewNameModal() {
-  return modalPrompt("Update Brain Name", /^\S+$/, 0, attrs.robotname ?? "");
+  return modalPrompt("Update Brain Name", /^\S*$/, 0, attrs.robotname ?? "");
+}
+
+async function promptForAutoConnect() {
+  const thing = await modalPrompt("Autoconnect to this brain in the future?", /.*/, null, attrs.robotname ?? "");
+  console.log(`Thing: ${thing}`)
+  if (thing === null) {
+    return false;
+  }
+  return true;
 }
 
 function setAt(dest, src, pos) {
@@ -795,18 +870,64 @@ code_lens= {
   "f": 4,
   "d": 8,
 }
+
+function get_data(data, index, fmt_code) {
+  fmt_funcs= {
+    "b": (data, index) => data.getInt8(index),
+    "B": (data, index) => data.getUint8(index),
+    "h": (data, index) => data.getInt16(index),
+    "H": (data, index) => data.getUint16(index),
+    "i": (data, index) => data.getInt32(index),
+    "I": (data, index) => data.getUint32(index),
+    "l": (data, index) => data.getInt32(index),
+    "L": (data, index) => data.getUint32(index),
+    "q": (data, index) => data.getInt64(index),
+    "Q": (data, index) => data.getUint64(index),
+    "e": (data, index) => data.getFloat16(index),
+    "f": (data, index) => data.getFloat32(index),
+    "d": (data, index) => data.getFloat64(index),
+  }
+  const func = fmt_funcs[fmt_code];
+  if (func === null) {
+    console.error(`Unsupported format code: ${fmt_code}`);
+  }
+  return func(data, index);
+}
+
+
+data_dict = {
+  "Axis A":    0,
+  "Axis B":    0,
+  "Axis C":    0,
+  "Axis D":    0,
+  "Heading":   0,
+  "Rotation":  0,
+  "Roll":      0,
+  "Pitch":     0,
+  "Yaw":       0,
+  "ax":        0,
+  "ay":        0,
+  "az":        0,
+  "gx":        0,
+  "gy":        0,
+  "gz":        0,
+};
 function unpack_vals(data, index, length) {
+  const view = new DataView(data.buffer, index, length);
+
   for (let i = index; i < index+length && i < data.byteLength; i++) {
     const code = data.getUint16(i);
     const [name, fmt] = fmt_for_data[code];
     const val_len = code_lens[fmt];
-    if (code == 4) {
-      var heading = data.getFloat32(i+2).toFixed(1).padStart(6, " ");
-      document.getElementById("heading").textContent = heading
-      //return;
-    }
-    i += val_len + 1;
+    data_dict[name] = get_data(data, i+2, fmt);
+    i += (val_len + 1);
   }
+  // display data
+  data_str = "";
+  for (const [name, val] of Object.entries(data_dict)) {
+    data_str += `${name}: ${String(val.toFixed(1)).padStart(10)}\n`;
+  }
+  dataEl.textContent = data_str;
 }
 
 function stdout_handler(event) {
@@ -819,6 +940,7 @@ function stdout_handler(event) {
     const byte = value.getUint8(i);
     if (byte == 0)
     {
+      console.log("New packet")
       // null byte starts new data packet
       // next two bytes are length
       if (i+2 < value.byteLength) {
@@ -871,12 +993,15 @@ function disconnect() {
   brainDevice = null;
   attrs = {};
   writeChar = null;
+  connectBtn.removeEventListener('click', disconnect);
+  connectBtn.addEventListener('click', connect);
+  connectBtn.textContent = "Connect";
 }
 
 // ===== Connect to Brain =====
-connectBtn.addEventListener('click', async () => {
+async function connect(brain=null) {
   try {
-    log('Looking for previously connected devices . . .')
+
     log('Requesting Bluetooth device...');
     brainDevice = await navigator.bluetooth.requestDevice({
       filters: [{services: [1568]}],
@@ -888,12 +1013,19 @@ connectBtn.addEventListener('click', async () => {
     });
 
     log(`Device selected: ${brainDevice.name}`);
-    gattServer = await brainDevice.gatt.connect();
-    log('GATT connected');
+    try {
+      gattServer = await brainDevice.gatt.connect();
+      log('GATT connected');
+    } catch (e) {
+      console.log(`Device not in range? Error: ${e}`);
+    }
 
     brainDevice.addEventListener('gattserverdisconnected', (event) => {
         disconnect();
     });
+    connectBtn.textContent = "Disconnect";
+    connectBtn.disabled = true;
+
 
     deviceInfoService = await gattServer.getPrimaryService(DEVICE_INFO_SERVICE_UUID);
     await queryDeviceInfo();
@@ -953,6 +1085,9 @@ connectBtn.addEventListener('click', async () => {
     if (stdoutChar.properties.notify) {
       stdoutChar.addEventListener('characteristicvaluechanged', stdout_handler);
     }
+    else {
+      console.log("Cannot hook stdout")
+    }
 
     const characteristics = await service.getCharacteristics();
     for (const char of characteristics) {
@@ -968,6 +1103,9 @@ connectBtn.addEventListener('click', async () => {
     await read_attribute_cmd("robotname");
 
     enable_buttons()
+    connectBtn.disabled = false;
+    connectBtn.removeEventListener('click', connect);
+    connectBtn.addEventListener('click', disconnect);
 
     // Command format
     // Examples:
@@ -1019,7 +1157,9 @@ connectBtn.addEventListener('click', async () => {
   } catch (e) {
     log('Error: ' + e);
   }
-});
+}
+
+connectBtn.addEventListener('click', connect); 
 
 // ===== Start Button =====
 startBtn.addEventListener('click', async () => {
