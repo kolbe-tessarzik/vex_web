@@ -111,6 +111,53 @@
     background: #6ba5ff;
   }
 
+  #snapshot {
+    position: fixed;
+    top: 20px;   /* Distance from the top edge of the browser window */
+    left: 20px; /* Distance from the right edge of the browser window */
+    /* optional: add z-index to ensure it stays on top of other elements */
+    z-index: 1000;
+
+  }
+
+  #canvasButton {
+    position: fixed;
+    top: 20px;   /* Distance from the top edge of the browser window */
+    right: 20px; /* Distance from the right edge of the browser window */
+    /* optional: add z-index to ensure it stays on top of other elements */
+    z-index: 1000;
+  }
+
+    /* Dim overlay */
+  #overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(0,0,0,0.5);
+    z-index: 10;
+  }
+
+  /* Chart container */
+  #chartContainer {
+    display: none;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: calc(100vw - 90px);
+    height: calc(100vh - 130px);
+    border: 1px solid black;
+    background-color: white;
+    z-index: 20;
+  }
+
+  canvas {
+    width: 100%;
+    height: 100%;
+  }
+
 </style>
 </head>
 <body>
@@ -167,6 +214,16 @@
     </div>
   </div>
 </div>
+
+<button id="snapshot">Snapshot</button>
+<button id="canvasButton">Show Chart</button>
+
+<div id="overlay"></div>
+<div id="chartContainer">
+  <canvas id="myChart"></canvas>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <script>
 // ========== VEX IQ BLE SNIFFER HOOK ==========
@@ -569,6 +626,13 @@ const clearBtn = document.getElementById('clearBtn')
 const stdout = document.getElementById('stdout');
 const logEl = document.getElementById('log');
 const dataEl = document.getElementById('structured');
+const overlay = document.getElementById('overlay');
+const container = document.getElementById('chartContainer');
+const canvasEl = document.getElementById('myChart');
+const snapBtn = document.getElementById('snapshot');
+
+snapBtn.style.display = "none";
+//snapBtn.style.display = "flex";
 
 function enable_buttons() {
   startBtn.disabled = false;
@@ -854,6 +918,9 @@ fmt_for_data = {
   12: ["gx", "f"],
   13: ["gy", "f"],
   14: ["gz", "f"],
+  15: ["Distance", "B"],
+  16: ["Hue", "H"],
+  17: ["Brightness", "B"],
 };
 code_lens= {
   "b": 1,
@@ -911,12 +978,30 @@ data_dict = {
   "gx":        0,
   "gy":        0,
   "gz":        0,
+  "Distance":  0,
 };
+
+let graph_data = Array.from({ length: 40 });
+for (let i = 0; i < graph_data.length; i++) {
+  graph_data[i] = { ...data_dict };
+}
+
+
+function update_graph() {
+  graph_data.push(graph_data.shift());
+  graph_data[graph_data.length - 1] = { ...data_dict};
+}
+
 function unpack_vals(data, index, length) {
   const view = new DataView(data.buffer, index, length);
 
   for (let i = index; i < index+length && i < data.byteLength; i++) {
     const code = data.getUint16(i);
+    const fmt_list = fmt_for_data[code];
+    if (fmt_list === null) {
+      console.warn(`Code ${code} doesn't exist`);
+      return;
+    }
     const [name, fmt] = fmt_for_data[code];
     const val_len = code_lens[fmt];
     data_dict[name] = get_data(data, i+2, fmt);
@@ -1184,6 +1269,192 @@ clearBtn.addEventListener('click', clearBoth);
 
 // ===== Bob Button ====
 renameBtn.addEventListener('click', renameBrain);
+
+let myChart = null;
+
+const labels = Array.from({ length: 40 }, (_, i) => i * 50);
+
+let config = null;
+
+const brightColors = [
+  'rgba(255, 99, 132, 1)',    // red
+  'rgba(54, 162, 235, 1)',    // blue
+  'rgba(255, 206, 86, 1)',    // yellow
+  'rgba(75, 192, 192, 1)',    // teal
+  'rgba(153, 102, 255, 1)',   // purple
+  'rgba(255, 159, 64, 1)',    // orange
+  'rgba(0, 128, 0, 1)',       // green
+  'rgba(255, 0, 255, 1)',     // magenta
+  'rgba(0, 255, 255, 1)',     // cyan
+  'rgba(128, 0, 0, 1)'        // dark red
+];
+
+
+function createConfig(graph_dict) {
+  // graph_dict should look like:
+  //   [{
+  //     name: "Data1",
+  //     axis: "y",
+  //   },
+  //   {
+  //     name: "Data2",
+  //     axis: "y2",
+  //   },
+  // ]
+  config = {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [
+      //   label: 'Heading',
+      //   data: new Array(40).fill(0),
+      //   yAxisID: 'y',
+      //   borderColor: 'rgba(75,192,192,1)',
+      //   backgroundColor: 'rgba(75,192,192,0.2)',
+      //   fill: false,
+      //   tension: 0
+      // },
+      // {
+      //   label: 'gx',
+      //   data: new Array(40).fill(0),
+      //   yAxisID: 'y2',
+      //   borderColor: 'rgba(255,99,132,1)',
+      //   tension: 0
+    ]
+    },
+    options: {
+      animation: false,
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: {
+          min: 0,    // force bottom of y-axis
+          max: 360,    // force top of y-axis
+          position: 'left',
+        },
+        y2: {
+          min: -2,    // force bottom of y-axis
+          max: 2,    // force top of y-axis
+          position: 'right',
+        }
+      }
+    }
+  };
+  const cookie = JSON.parse(localStorage.getItem('GraphShownLines')) ?? {};
+
+  graph_dict.forEach((val, index) => {
+    const color = brightColors[index % brightColors.length];
+    const dataset = {
+      label: val.name,
+      data: new Array(40).fill(0),
+      yAxisID: val.axis,
+      borderColor: color,
+      backgroundColor: color.replace('1)', '0.2)'),
+      hidden: cookie[val.name] || false,
+      fill: false,
+      tension: 0
+    };
+    config.data.datasets.push(dataset);
+  });
+
+  console.log(`Final config: ${config}`);
+}
+createConfig([
+  {
+    name: "Heading",
+    axis: "y",
+  },
+  {
+    name: "gx",
+    axis: "y2",
+  },
+    {
+    name: "gy",
+    axis: "y2",
+    hidden: true,
+  },
+  {
+    name: "gz",
+    axis: "y2",
+    hidden: true,
+  },
+
+]);
+
+
+
+// Show/hide chart + overlay
+document.getElementById('canvasButton').addEventListener('click', () => {
+    const isHidden = container.style.display === 'none' || container.style.display === '';
+    container.style.display = isHidden ? 'block' : 'none';
+    overlay.style.display = isHidden ? 'block' : 'none';
+    snapBtn.style.display = isHidden ? 'block' : 'none';
+
+    if (isHidden) {
+        // Initialize chart after container is visible
+        if (!myChart) {
+            const ctx = canvasEl.getContext('2d');
+            myChart = new Chart(ctx, config);
+        } else {
+            myChart.resize(); // resize if chart already exists
+        }
+    }
+});
+
+// Automatically resize chart when window changes size
+window.addEventListener('resize', () => {
+    if (myChart && container.style.display === 'block') {
+        myChart.resize();
+    }
+});
+
+// Clicking overlay hides chart
+overlay.addEventListener('click', () => {
+    container.style.display = 'none';
+    overlay.style.display = 'none';
+});
+
+let frozen = false;
+snapBtn.addEventListener('click', () => {
+  frozen = !frozen;
+});
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function main_loop() {
+  if (myChart !== null) {
+    update_graph();
+    if (!frozen) {
+      var cookie = JSON.parse(localStorage.getItem('GraphShownLines'));
+      if (cookie === null) {
+        console.log("Null cookie")
+        cookie = {};
+      }
+      var cookie_changed = false;
+      for (var i = 0; i < myChart.data.datasets.length; i++) {
+          const data_name = myChart.data.datasets[i].label;
+          const meta = myChart.getDatasetMeta(i);
+          const hidden = meta.hidden;
+          if (hidden !== cookie[data_name] && hidden !== null) {
+            cookie[data_name] = hidden;
+            cookie_changed = true;
+          }
+        myChart.data.datasets[i].data = graph_data.map(d => d[data_name]);
+      }
+
+      myChart.update('none');
+      if (cookie_changed) {
+        localStorage.setItem('GraphShownLines', JSON.stringify(cookie));
+      }
+    }
+
+  }
+  setTimeout(main_loop, 50);
+}
+
+window.onload = main_loop;
 
 
 </script>
