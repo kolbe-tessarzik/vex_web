@@ -925,6 +925,7 @@ window.addEventListener('resize', () => {
 overlay.addEventListener('click', () => {
     container.style.display = 'none';
     overlay.style.display = 'none';
+    snapBtn.style.display = 'none';
 });
 
 let frozen = false;
@@ -958,7 +959,7 @@ function main_loop() {
       }
 
       myChart.update('none');
-      if (cookie_changed) {
+      if (cookie_changed || cookie == {}) {
         localStorage.setItem('GraphShownLines', JSON.stringify(cookie));
       }
     }
