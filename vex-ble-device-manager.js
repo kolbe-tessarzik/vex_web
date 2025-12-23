@@ -4493,113 +4493,93 @@ class VEXBLEDeviceManager {
     getDeviceInfo() {
         return this.deviceInfo;
     }
-    scanAndConnect() {
-        return __awaiter(this, void 0, void 0, function* () {
-            yield this.scan();
-            yield this.connect();
-        });
+    async scanAndConnect() {
+        await this.scan();
+        await this.connect();
     }
     disconnect(force) {
-        return __awaiter(this, void 0, void 0, function* () {
-            if (!this.device) {
-                log3.info("no device to disconnect!");
-                return;
-            }
-            this.enableAutoConnect = false;
-            if (this.device.gatt.connected) {
-                this.device.gatt.disconnect();
+        if (!this.device) {
+            log3.info("no device to disconnect!");
+            return;
+        }
+        this.enableAutoConnect = false;
+        if (this.device.gatt.connected) {
+            this.device.gatt.disconnect();
+            this.device = undefined;
+            this.updateConnectionState(BrainConnectionState.Disconnected);
+            log3.info("disconnected");
+        }
+        else {
+            if (force) {
                 this.device = undefined;
                 this.updateConnectionState(BrainConnectionState.Disconnected);
-                log3.info("disconnected");
+                log3.info("forcing disconnection & cleanup");
             }
-            else {
-                if (force) {
-                    this.device = undefined;
-                    this.updateConnectionState(BrainConnectionState.Disconnected);
-                    log3.info("forcing disconnection & cleanup");
-                }
-                log3.info("already disconnected");
+            log3.info("already disconnected");
+        }
+    }
+    async powerOff() {
+        const state = Uint8Array.of(PowerState.Off);
+        await writeCharacteristicValue(this.characteristics[BLECharacteristicsID.Reset], state);
+    }
+    async reboot() {
+        const state = Uint8Array.of(PowerState.Reboot);
+        // set to false if Full Scan required
+        this.enableAutoConnect = true;
+        await writeCharacteristicValue(this.characteristics[BLECharacteristicsID.Reset], state);
+    }
+    async setFirmwareToBeta(firmwareType) {
+        this.firmwareType = firmwareType;
+        await this.pullLatestFirmwareVersion(this.firmwareType);
+    }
+    async bootload() {
+        const state = Uint8Array.of(PowerState.Bootload);
+        // set to false if Full Scan required
+        this.enableAutoConnect = true;
+        await writeCharacteristicValue(this.characteristics[BLECharacteristicsID.Reset], state);
+        this.isWaitingToBootload = true;
+        // uncomment if Full scan required
+        // but in bootload mode , the web bluetooth is showing the brain in the scan list
+        // this.device = undefined;
+        // await this.scanAndConnect();
+    }
+    async bootloadOneStick() {
+        const state = Uint8Array.of(PowerState.Bootload);
+        this.enableAutoConnect = true;
+        await writeCharacteristicValue(this.characteristics[BLECharacteristicsID.OneStickReset], state);
+        this.isWaitingToBootload = true;
+    }
+    async SendProgramStateCommand(cmd) {
+        if (this.connectionState === BrainConnectionState.Connected && this.characteristics[BLECharacteristicsID.ProgramCommand]) {
+            const value = new Uint8Array(1);
+            switch (cmd) {
+                case VEXProgramState.Play:
+                    value[0] = ProgramConst.PROG_CMD_PLAY;
+                    break;
+                case VEXProgramState.Play:
+                    value[0] = ProgramConst.PROG_CMD_PAUSE;
+                    break;
+                case VEXProgramState.Step:
+                    value[0] = ProgramConst.PROG_CMD_STEP;
+                    break;
+                default:
+                    value[0] = ProgramConst.PROG_CMD_STOP;
+                    break;
             }
-        });
-    }
-    powerOff() {
-        return __awaiter(this, void 0, void 0, function* () {
-            const state = Uint8Array.of(PowerState.Off);
-            yield writeCharacteristicValue(this.characteristics[BLECharacteristicsID.Reset], state);
-        });
-    }
-    reboot() {
-        return __awaiter(this, void 0, void 0, function* () {
-            const state = Uint8Array.of(PowerState.Reboot);
-            // set to false if Full Scan required
-            this.enableAutoConnect = true;
-            yield writeCharacteristicValue(this.characteristics[BLECharacteristicsID.Reset], state);
-        });
-    }
-    setFirmwareToBeta(firmwareType) {
-        return __awaiter(this, void 0, void 0, function* () {
-            this.firmwareType = firmwareType;
-            yield this.pullLatestFirmwareVersion(this.firmwareType);
-        });
-    }
-    bootload() {
-        return __awaiter(this, void 0, void 0, function* () {
-            const state = Uint8Array.of(PowerState.Bootload);
-            // set to false if Full Scan required
-            this.enableAutoConnect = true;
-            yield writeCharacteristicValue(this.characteristics[BLECharacteristicsID.Reset], state);
-            this.isWaitingToBootload = true;
-            // uncomment if Full scan required
-            // but in bootload mode , the web bluetooth is showing the brain in the scan list
-            // this.device = undefined;
-            // await this.scanAndConnect();
-        });
-    }
-    bootloadOneStick() {
-        return __awaiter(this, void 0, void 0, function* () {
-            const state = Uint8Array.of(PowerState.Bootload);
-            this.enableAutoConnect = true;
-            yield writeCharacteristicValue(this.characteristics[BLECharacteristicsID.OneStickReset], state);
-            this.isWaitingToBootload = true;
-        });
-    }
-    SendProgramStateCommand(cmd) {
-        return __awaiter(this, void 0, void 0, function* () {
-            if (this.connectionState === BrainConnectionState.Connected && this.characteristics[BLECharacteristicsID.ProgramCommand]) {
-                const value = new Uint8Array(1);
-                switch (cmd) {
-                    case VEXProgramState.Play:
-                        value[0] = ProgramConst.PROG_CMD_PLAY;
-                        break;
-                    case VEXProgramState.Play:
-                        value[0] = ProgramConst.PROG_CMD_PAUSE;
-                        break;
-                    case VEXProgramState.Step:
-                        value[0] = ProgramConst.PROG_CMD_STEP;
-                        break;
-                    default:
-                        value[0] = ProgramConst.PROG_CMD_STOP;
-                        break;
-                }
-                try {
-                    yield writeCharacteristicValue(this.characteristics[BLECharacteristicsID.ProgramCommand], value);
-                }
-                catch (ex) {
-                    this.delay(500);
-                    yield writeCharacteristicValue(this.characteristics[BLECharacteristicsID.ProgramCommand], value);
-                }
+            try {
+                await writeCharacteristicValue(this.characteristics[BLECharacteristicsID.ProgramCommand], value);
             }
-        });
+            catch (ex) {
+                this.delay(500);
+                await writeCharacteristicValue(this.characteristics[BLECharacteristicsID.ProgramCommand], value);
+            }
+        }
     }
     checkIfUpdateNeeded() {
-        return __awaiter(this, void 0, void 0, function* () {
-            return this.deviceInfo && this.deviceInfo.updateNeeded;
-        });
+        return this.deviceInfo && this.deviceInfo.updateNeeded;
     }
     checkIfBootloaderUpdateNeeded() {
-        return __awaiter(this, void 0, void 0, function* () {
-            return this.deviceInfo && this.deviceInfo.bootloaderUpdateNeeded;
-        });
+        return this.deviceInfo && this.deviceInfo.bootloaderUpdateNeeded;
     }
     /**
      * update firmware of the device
@@ -5059,51 +5039,46 @@ class VEXBLEDeviceManager {
     /**
      * Send Controller updates
      */
-    controllerUpdate() {
-        return __awaiter(this, void 0, void 0, function* () {
-            if (this.isConnected()) {
-                yield this.setControlControlValues(this.currentControlValues.leftX, this.currentControlValues.leftY, this.currentControlValues.rightX, this.currentControlValues.rightY, this.currentControlValues.Buttons1, this.currentControlValues.Buttons2);
-            }
-        });
+    async controllerUpdate() {
+        if (this.isConnected()) {
+            await this.setControlControlValues(this.currentControlValues.leftX, this.currentControlValues.leftY, this.currentControlValues.rightX, this.currentControlValues.rightY, this.currentControlValues.Buttons1, this.currentControlValues.Buttons2);
+        }
     }
     /**
-     * In Go firmware app1.0.3 BL1.1.3 and newer the device ID changed in the advertisement data. This may cause issues when updating older versions of firmware with new BLs. This function will compare two ids for both the old ID format and the new. Once a brain is fully up to date this function is not really needed.
+     * In Go firmware app1.0.3 BL1.1.3 and newer the device ID changed in the advertisement data.
+     * This may cause issues when updating older versions of firmware with new BLs.
+     * This function will compare two ids for both the old ID format and the new.
+     * Once a brain is fully up to date this function is not really needed.
      */
     CheckAlternateID(deviceID, searchID) {
         return (deviceID == (searchID & 0xFF00FFFF));
     }
-    setRobotConfigPreset(config) {
-        return __awaiter(this, void 0, void 0, function* () {
-            log3.debug("setRobotConfigPreset: ", config);
-            if (this.isConnected() && this.characteristics[BLECharacteristicsID.ProgramCommand]) {
-                const value = new Uint8Array([ProgramConst.PROG_CMD_SET_BOT_CONFIG_PRESET, config]);
-                yield writeCharacteristicValue(this.characteristics[BLECharacteristicsID.ProgramCommand], value);
-            }
-        });
+    async setRobotConfigPreset(config) {
+        log3.debug("setRobotConfigPreset: ", config);
+        if (this.isConnected() && this.characteristics[BLECharacteristicsID.ProgramCommand]) {
+            const value = new Uint8Array([ProgramConst.PROG_CMD_SET_BOT_CONFIG_PRESET, config]);
+            await writeCharacteristicValue(this.characteristics[BLECharacteristicsID.ProgramCommand], value);
+        }
     }
-    setPortConfig(portNum, devType, flags = VEXPortConfigFlags.FLAG_ENABLED, iLimitPct = 50, iLimitMax = 1000, Accel_value = 1, Dft_Vel = 50) {
-        return __awaiter(this, void 0, void 0, function* () {
-            if (this.connectionState === BrainConnectionState.Connected && this.characteristics[BLECharacteristicsID.ProgramCommand]) {
-                let value = new Uint8Array();
-                try {
-                    const settings = uint16ToByteArray(iLimitMax);
-                    value = new Uint8Array([ProgramConst.PROG_CMD_SET_PORT_CONFIG, portNum, devType, flags, settings[0], settings[1], iLimitPct, Accel_value, Dft_Vel]);
-                    yield writeCharacteristicValue(this.characteristics[BLECharacteristicsID.ProgramCommand], value);
-                }
-                catch (ex) {
-                    this.delay(500);
-                    yield writeCharacteristicValue(this.characteristics[BLECharacteristicsID.ProgramCommand], value);
-                }
+    async setPortConfig(portNum, devType, flags = VEXPortConfigFlags.FLAG_ENABLED, iLimitPct = 50, iLimitMax = 1000, Accel_value = 1, Dft_Vel = 50) {
+        if (this.connectionState === BrainConnectionState.Connected && this.characteristics[BLECharacteristicsID.ProgramCommand]) {
+            let value = new Uint8Array();
+            try {
+                const settings = uint16ToByteArray(iLimitMax);
+                value = new Uint8Array([ProgramConst.PROG_CMD_SET_PORT_CONFIG, portNum, devType, flags, settings[0], settings[1], iLimitPct, Accel_value, Dft_Vel]);
+                await writeCharacteristicValue(this.characteristics[BLECharacteristicsID.ProgramCommand], value);
             }
-        });
+            catch (ex) {
+                this.delay(500);
+                await writeCharacteristicValue(this.characteristics[BLECharacteristicsID.ProgramCommand], value);
+            }
+        }
     }
-    requestRobotConfig() {
-        return __awaiter(this, void 0, void 0, function* () {
-            if (this.isConnected() && this.characteristics[BLECharacteristicsID.ProgramBotConfig]) {
-                const value = yield readCharacteristicValue(this.characteristics[BLECharacteristicsID.ProgramBotConfig]);
-                // TODO: The config will be received through notification - needs callback
-            }
-        });
+    async requestRobotConfig() {
+        if (this.isConnected() && this.characteristics[BLECharacteristicsID.ProgramBotConfig]) {
+            const value = await readCharacteristicValue(this.characteristics[BLECharacteristicsID.ProgramBotConfig]);
+            // TODO: The config will be received through notification - needs callback
+        }
     }
     // public showBrainsInBootloadOnly(show: boolean) {
     //     this.showBrainsInBootload = show;
@@ -5854,65 +5829,59 @@ class VEXBLEDeviceManager {
      * @param progressCallback
      * @returns image in RGB565 format as dataUrl string
      */
-    captureBrainScreenAIM(progressCallback) {
-        return __awaiter(this, void 0, void 0, function* () {
-            //screen capture options for AIM
-            // this may probable need to be passed from the caller(VEXcode) for different products
-            const options = {
-                width: 240,
-                height: 240,
-                bytesPerPixel: 2,
-                littleEndian: true,
-                // not really sure about the layer. could be -2 or 2
-                layer: -2,
-                isYUV: false,
-            };
-            const width = options.width;
-            const height = options.height;
-            const bytesPerPixel = options.bytesPerPixel;
-            try {
-                log3.debug("captureBrainScreen");
-                let screenData = undefined;
-                if (this.isConnected()) {
-                    screenData = yield this.vexCDCDevice.captureScreenData(width * height * bytesPerPixel, progressCallback);
-                }
-                else {
-                    log3.error("captureBrainScreen: not connected");
-                    return undefined;
-                }
-                // AIM uses RGB565 encoding of the image data
-                return (0,convertImageDataRGB565)(screenData, width, height, options.littleEndian);
+    async captureBrainScreenAIM(progressCallback) {
+        //screen capture options for AIM
+        // this may probable need to be passed from the caller(VEXcode) for different products
+        const options = {
+            width: 240,
+            height: 240,
+            bytesPerPixel: 2,
+            littleEndian: true,
+            // not really sure about the layer. could be -2 or 2
+            layer: -2,
+            isYUV: false,
+        };
+        const width = options.width;
+        const height = options.height;
+        const bytesPerPixel = options.bytesPerPixel;
+        try {
+            log3.debug("captureBrainScreen");
+            let screenData = undefined;
+            if (this.isConnected()) {
+                screenData = await this.vexCDCDevice.captureScreenData(width * height * bytesPerPixel, progressCallback);
             }
-            catch (err) {
-                log3.error("captureBrainScreen: ", err);
+            else {
+                log3.error("captureBrainScreen: not connected");
+                return undefined;
             }
-        });
+            // AIM uses RGB565 encoding of the image data
+            return (0,convertImageDataRGB565)(screenData, width, height, options.littleEndian);
+        }
+        catch (err) {
+            log3.error("captureBrainScreen: ", err);
+        }
     }
     /**
     * this will tell the brain to play the program loaded in the specified slot.
     * @param slot the slot to play. 0 indexed
     * @returns true if the process was a success
     */
-    Play(slot) {
-        return __awaiter(this, void 0, void 0, function* () {
-            // 0 index based on brain
-            slot = slot < 0 ? 0 : slot;
-            slot = slot > 7 ? 7 : slot;
-            // We can play a slot using special file name "___s_00.bin" etc.
-            let name = '___s_' + ('00' + slot.toString(10)).substr(-2, 2) + '.bin';
-            return this.runProgram(name, VEXCDCDevice.VID.USER);
-        });
+    async Play(slot) {
+        // 0 index based on brain
+        slot = slot < 0 ? 0 : slot;
+        slot = slot > 7 ? 7 : slot;
+        // We can play a slot using special file name "___s_00.bin" etc.
+        let name = '___s_' + ('00' + slot.toString(10)).substr(-2, 2) + '.bin';
+        return this.runProgram(name, VEXCDCDevice.VID.USER);
     }
     /**
      * this will tell the brain to run the specified system program slot.
      * @param slot the slot to play. 0 indexed
      * @returns true if the process was a success
      */
-    runSystemProgram(slot) {
-        return __awaiter(this, void 0, void 0, function* () {
-            const programName = '___v_' + ('00' + slot.toString(10)).substr(-2, 2);
-            return this.runProgram(programName, VEXCDCDevice.VID.SYS);
-        });
+    async runSystemProgram(slot) {
+        const programName = '___v_' + ('00' + slot.toString(10)).substr(-2, 2);
+        return this.runProgram(programName, VEXCDCDevice.VID.SYS);
     }
     /**
      * this will tell the brain to run the specified program.
@@ -5920,26 +5889,16 @@ class VEXBLEDeviceManager {
      * @param vid the VID to use. This is either VEXCDCDevice.VID.SYS or VEXCDCDevice.VID.USER
      * @returns true if the process was a success
      */
-    runProgram(program, vid) {
-        return __awaiter(this, void 0, void 0, function* () {
-            return new Promise((resolve, reject) => {
-                const name = program + '.bin';
-                this.WriteDataAsync(this.cdc.V5_Cdc2FileLoadAndRun(vid, 0, name))
-                    .then(() => {
-                    resolve(true);
-                })
-                    .catch((err) => {
-                    if (err instanceof ErrorGATT) {
-                        reject(err);
-                        return;
-                    }
-                    reject();
-                })
-                    .finally(() => {
-                    //cleanup if any
-                });
-            });
-        });
+    async runProgram(program, vid) {
+        const name = program + '.bin';
+        try {
+            await this.WriteDataAsync(this.cdc.V5_Cdc2FileLoadAndRun(vid, 0, name));
+            return true;
+        } catch (err) {
+            if (err instanceof ErrorGATT) {
+                throw err;
+            }
+        }
     }
     isProjectRunning() {
         return new Promise((resolve, reject) => {
@@ -5948,10 +5907,10 @@ class VEXBLEDeviceManager {
                 log3.debug("current program:", this.vexCDCDevice.currentProgram.toString(16));
                 // 0 - is no project running
                 // 1-8 is user projects
-                // 9 - drive program
+                // 145 (0x91) - drive program
                 // 10 - button coding
                 // 11 - REPL Mode program
-                resolve(this.vexCDCDevice.currentProgram !== 0);
+                resolve(this.vexCDCDevice.currentProgram);// !== 0);
             })
                 .catch(() => {
                 reject();
@@ -6385,192 +6344,185 @@ class VEXBLEDeviceManager {
         });
     }
     subscribeToCharacteristics() {
-        return __awaiter(this, void 0, void 0, function* () {
-            log3.debug("subscribeToCharacteristics");
-            if (this.productType == VEXProductTypes.VEXGO || this.productType == VEXProductTypes.VEX123Puck) {
-                //program characteristics
-                if (this.characteristics[BLECharacteristicsID.ProgramCommand]) {
-                    this.characteristics[BLECharacteristicsID.ProgramCommand].addEventListener("characteristicvaluechanged", this.notificationHandlerProgramCommand);
-                }
-                if (this.characteristics[BLECharacteristicsID.ProgramSensorStatus]) {
-                    this.characteristics[BLECharacteristicsID.ProgramSensorStatus].addEventListener("characteristicvaluechanged", this.notificationHandlerSensorStatus);
-                }
-                if (this.characteristics[BLECharacteristicsID.ProgramPortCmdStatus]) {
-                    this.characteristics[BLECharacteristicsID.ProgramPortCmdStatus].addEventListener("characteristicvaluechanged", this.notificationHandlerPortCommandStatus);
-                }
-                if (this.characteristics[BLECharacteristicsID.ProgramBotConfig]) {
-                    this.characteristics[BLECharacteristicsID.ProgramBotConfig].addEventListener("characteristicvaluechanged", this.notificationHandlerProgramBotConfig);
-                }
+        log3.debug("subscribeToCharacteristics");
+        if (this.productType == VEXProductTypes.VEXGO || this.productType == VEXProductTypes.VEX123Puck) {
+            //program characteristics
+            if (this.characteristics[BLECharacteristicsID.ProgramCommand]) {
+                this.characteristics[BLECharacteristicsID.ProgramCommand].addEventListener("characteristicvaluechanged", this.notificationHandlerProgramCommand);
             }
-            if (this.productType == VEXProductTypes.VEXGO || this.productType == VEXProductTypes.VEX123Puck || this.productType == VEXProductTypes.OneStickController) {
-                //firmware update characteristics
-                if (this.characteristics[BLECharacteristicsID.OADImageID]) {
-                    this.characteristics[BLECharacteristicsID.OADImageID].addEventListener("characteristicvaluechanged", this.notificationHandlerOADImageID);
-                }
-                if (this.characteristics[BLECharacteristicsID.OADImageCtrl]) {
-                    this.characteristics[BLECharacteristicsID.OADImageCtrl].addEventListener("characteristicvaluechanged", this.notificationHandlerOADImageCtrl);
-                }
-                if (this.characteristics[BLECharacteristicsID.OADImageBlock]) {
-                    this.characteristics[BLECharacteristicsID.OADImageBlock].addEventListener("characteristicvaluechanged", this.notificationHandlerOADImageBlock);
-                }
+            if (this.characteristics[BLECharacteristicsID.ProgramSensorStatus]) {
+                this.characteristics[BLECharacteristicsID.ProgramSensorStatus].addEventListener("characteristicvaluechanged", this.notificationHandlerSensorStatus);
             }
-            //common device info characteristics
-            if (this.characteristics[BLECharacteristicsID.DevInfoHardwareRev]) {
-                this.characteristics[BLECharacteristicsID.DevInfoHardwareRev].addEventListener("characteristicvaluechanged", this.notificationHandlerDevInfoHardwareRev);
+            if (this.characteristics[BLECharacteristicsID.ProgramPortCmdStatus]) {
+                this.characteristics[BLECharacteristicsID.ProgramPortCmdStatus].addEventListener("characteristicvaluechanged", this.notificationHandlerPortCommandStatus);
             }
-            if (this.characteristics[BLECharacteristicsID.DevInfoLog]) {
-                this.characteristics[BLECharacteristicsID.DevInfoLog].addEventListener("characteristicvaluechanged", this.notificationHandlerDeviceLog);
+            if (this.characteristics[BLECharacteristicsID.ProgramBotConfig]) {
+                this.characteristics[BLECharacteristicsID.ProgramBotConfig].addEventListener("characteristicvaluechanged", this.notificationHandlerProgramBotConfig);
             }
-            //AIM 
-            if (this.productType == VEXProductTypes.VEXAIM) {
-                //admin data receive handler
-                if (this.characteristics[BLECharacteristicsID.AIMTXData]) {
-                    this.characteristics[BLECharacteristicsID.AIMTXData].addEventListener("characteristicvaluechanged", this.notificationHandlerAIMTXData);
-                }
-                //admin data receive handler
-                if (this.characteristics[BLECharacteristicsID.AIMTXUser]) {
-                    this.characteristics[BLECharacteristicsID.AIMTXUser].addEventListener("characteristicvaluechanged", this.notificationHandlerAIMTXUser);
-                }
-                //remote command status 
-                if (this.characteristics[BLECharacteristicsID.AIMRemoteControlStatus]) {
-                    this.characteristics[BLECharacteristicsID.AIMRemoteControlStatus].addEventListener("characteristicvaluechanged", this.notificationHandlerAIMRemoteControlStatus);
-                }
-                if (this.characteristics[BLECharacteristicsID.AIMRemoteControlCommand]) {
-                    this.characteristics[BLECharacteristicsID.AIMRemoteControlCommand].addEventListener("characteristicvaluechanged", this.notificationHandlerAIMRemoteControlCommand);
-                }
-                if (this.characteristics[BLECharacteristicsID.AIMRemoteControlAIStatus]) {
-                    this.characteristics[BLECharacteristicsID.AIMRemoteControlAIStatus].addEventListener("characteristicvaluechanged", this.notificationHandlerAIMRemoteControlAIStatus);
-                }
+        }
+        if (this.productType == VEXProductTypes.VEXGO || this.productType == VEXProductTypes.VEX123Puck || this.productType == VEXProductTypes.OneStickController) {
+            //firmware update characteristics
+            if (this.characteristics[BLECharacteristicsID.OADImageID]) {
+                this.characteristics[BLECharacteristicsID.OADImageID].addEventListener("characteristicvaluechanged", this.notificationHandlerOADImageID);
             }
-            //IQ2 /EXP/ V5
-            if (this.productType == VEXProductTypes.VEXIQ2Brain || this.productType == VEXProductTypes.V5_Brain || this.productType == VEXProductTypes.VEXEXPBrain) {
-                //admin data receive handler
-                if (this.characteristics[BLECharacteristicsID.AIMTXData]) {
-                    this.characteristics[BLECharacteristicsID.AIMTXData].addEventListener("characteristicvaluechanged", this.notificationHandlerAIMTXData);
-                }
-                //admin data receive handler
-                if (this.characteristics[BLECharacteristicsID.AIMTXUser]) {
-                    this.characteristics[BLECharacteristicsID.AIMTXUser].addEventListener("characteristicvaluechanged", this.notificationHandlerAIMTXUser);
-                }
+            if (this.characteristics[BLECharacteristicsID.OADImageCtrl]) {
+                this.characteristics[BLECharacteristicsID.OADImageCtrl].addEventListener("characteristicvaluechanged", this.notificationHandlerOADImageCtrl);
             }
-        });
+            if (this.characteristics[BLECharacteristicsID.OADImageBlock]) {
+                this.characteristics[BLECharacteristicsID.OADImageBlock].addEventListener("characteristicvaluechanged", this.notificationHandlerOADImageBlock);
+            }
+        }
+        //common device info characteristics
+        if (this.characteristics[BLECharacteristicsID.DevInfoHardwareRev]) {
+            this.characteristics[BLECharacteristicsID.DevInfoHardwareRev].addEventListener("characteristicvaluechanged", this.notificationHandlerDevInfoHardwareRev);
+        }
+        if (this.characteristics[BLECharacteristicsID.DevInfoLog]) {
+            this.characteristics[BLECharacteristicsID.DevInfoLog].addEventListener("characteristicvaluechanged", this.notificationHandlerDeviceLog);
+        }
+        //AIM 
+        if (this.productType == VEXProductTypes.VEXAIM) {
+            //admin data receive handler
+            if (this.characteristics[BLECharacteristicsID.AIMTXData]) {
+                this.characteristics[BLECharacteristicsID.AIMTXData].addEventListener("characteristicvaluechanged", this.notificationHandlerAIMTXData);
+            }
+            //admin data receive handler
+            if (this.characteristics[BLECharacteristicsID.AIMTXUser]) {
+                this.characteristics[BLECharacteristicsID.AIMTXUser].addEventListener("characteristicvaluechanged", this.notificationHandlerAIMTXUser);
+            }
+            //remote command status 
+            if (this.characteristics[BLECharacteristicsID.AIMRemoteControlStatus]) {
+                this.characteristics[BLECharacteristicsID.AIMRemoteControlStatus].addEventListener("characteristicvaluechanged", this.notificationHandlerAIMRemoteControlStatus);
+            }
+            if (this.characteristics[BLECharacteristicsID.AIMRemoteControlCommand]) {
+                this.characteristics[BLECharacteristicsID.AIMRemoteControlCommand].addEventListener("characteristicvaluechanged", this.notificationHandlerAIMRemoteControlCommand);
+            }
+            if (this.characteristics[BLECharacteristicsID.AIMRemoteControlAIStatus]) {
+                this.characteristics[BLECharacteristicsID.AIMRemoteControlAIStatus].addEventListener("characteristicvaluechanged", this.notificationHandlerAIMRemoteControlAIStatus);
+            }
+        }
+        //IQ2 /EXP/ V5
+        if (this.productType == VEXProductTypes.VEXIQ2Brain || this.productType == VEXProductTypes.V5_Brain || this.productType == VEXProductTypes.VEXEXPBrain) {
+            //admin data receive handler
+            if (this.characteristics[BLECharacteristicsID.AIMTXData]) {
+                this.characteristics[BLECharacteristicsID.AIMTXData].addEventListener("characteristicvaluechanged", this.notificationHandlerAIMTXData);
+            }
+            //admin data receive handler
+            if (this.characteristics[BLECharacteristicsID.AIMTXUser]) {
+                this.characteristics[BLECharacteristicsID.AIMTXUser].addEventListener("characteristicvaluechanged", this.notificationHandlerAIMTXUser);
+            }
+        }
     }
     startNotifications() {
-        return __awaiter(this, void 0, void 0, function* () {
-            log3.debug("startNotifications");
-            // TODO: - This should be modified to consider only the characteristics subscribed /used by the app
-            if (this.productType == VEXProductTypes.VEXGO || this.productType == VEXProductTypes.VEX123Puck) {
-                this.enableProgramCommandStatus(true);
-                this.enableProgramSensorStatus(true);
-                this.enableProgramPortCmdStatus(true);
-                //this.enableDeviceInfoLogService(true);
-            }
-            if (this.productType == VEXProductTypes.VEXGO || this.productType == VEXProductTypes.VEX123Puck || this.productType == VEXProductTypes.OneStickController) {
-                this.enableFirmwareUpdateService(true);
-            }
-            if (this.productType == VEXProductTypes.VEXAIM || this.productType == VEXProductTypes.VEXIQ2Brain || this.productType == VEXProductTypes.VEXEXPBrain || this.productType == VEXProductTypes.V5_Brain) {
-                //TODO: - checkk characterstics UUID for v5/ iq and subscribe to chars when adding support 
-                this.enableAdminService(true);
-            }
-            if (this.productType == VEXProductTypes.VEXAIM) {
-                this.enableAIMRemoteControlService(true);
-            }
-        });
+        log3.debug("startNotifications");
+        // TODO: - This should be modified to consider only the characteristics subscribed /used by the app
+        if (this.productType == VEXProductTypes.VEXGO || this.productType == VEXProductTypes.VEX123Puck) {
+            this.enableProgramCommandStatus(true);
+            this.enableProgramSensorStatus(true);
+            this.enableProgramPortCmdStatus(true);
+            //this.enableDeviceInfoLogService(true);
+        }
+        if (this.productType == VEXProductTypes.VEXGO || this.productType == VEXProductTypes.VEX123Puck || this.productType == VEXProductTypes.OneStickController) {
+            this.enableFirmwareUpdateService(true);
+        }
+        if (this.productType == VEXProductTypes.VEXAIM || this.productType == VEXProductTypes.VEXIQ2Brain || this.productType == VEXProductTypes.VEXEXPBrain || this.productType == VEXProductTypes.V5_Brain) {
+            //TODO: - checkk characterstics UUID for v5/ iq and subscribe to chars when adding support 
+            this.enableAdminService(true);
+        }
+        if (this.productType == VEXProductTypes.VEXAIM) {
+            this.enableAIMRemoteControlService(true);
+        }
     }
     unSubscribeToCharacteristics() {
-        return __awaiter(this, void 0, void 0, function* () {
-            log3.debug("unSubscribeToCharacteristics");
-            // unregister events
-            if (this.productType == VEXProductTypes.VEXGO || this.productType == VEXProductTypes.VEX123Puck) {
-                if (this.characteristics[BLECharacteristicsID.ProgramCommand]) {
-                    this.characteristics[BLECharacteristicsID.ProgramCommand].removeEventListener("characteristicvaluechanged", this.notificationHandlerProgramCommand);
-                }
-                if (this.characteristics[BLECharacteristicsID.ProgramSensorStatus]) {
-                    this.characteristics[BLECharacteristicsID.ProgramSensorStatus].removeEventListener("characteristicvaluechanged", this.notificationHandlerSensorStatus);
-                }
-                if (this.characteristics[BLECharacteristicsID.ProgramPortCmdStatus]) {
-                    this.characteristics[BLECharacteristicsID.ProgramPortCmdStatus].removeEventListener("characteristicvaluechanged", this.notificationHandlerPortCommandStatus);
-                }
-                if (this.characteristics[BLECharacteristicsID.ProgramBotConfig]) {
-                    this.characteristics[BLECharacteristicsID.ProgramBotConfig].removeEventListener("characteristicvaluechanged", this.notificationHandlerProgramBotConfig);
-                }
+        log3.debug("unSubscribeToCharacteristics");
+        // unregister events
+        if (this.productType == VEXProductTypes.VEXGO || this.productType == VEXProductTypes.VEX123Puck) {
+            if (this.characteristics[BLECharacteristicsID.ProgramCommand]) {
+                this.characteristics[BLECharacteristicsID.ProgramCommand].removeEventListener("characteristicvaluechanged", this.notificationHandlerProgramCommand);
             }
-            if (this.productType == VEXProductTypes.VEXGO || this.productType == VEXProductTypes.VEX123Puck || this.productType == VEXProductTypes.OneStickController) {
-                if (this.characteristics[BLECharacteristicsID.OADImageID]) {
-                    this.characteristics[BLECharacteristicsID.OADImageID].removeEventListener("characteristicvaluechanged", this.notificationHandlerOADImageID);
-                }
-                if (this.characteristics[BLECharacteristicsID.OADImageCtrl]) {
-                    this.characteristics[BLECharacteristicsID.OADImageCtrl].removeEventListener("characteristicvaluechanged", this.notificationHandlerOADImageCtrl);
-                }
-                if (this.characteristics[BLECharacteristicsID.OADImageBlock]) {
-                    this.characteristics[BLECharacteristicsID.OADImageBlock].removeEventListener("characteristicvaluechanged", this.notificationHandlerOADImageBlock);
-                }
+            if (this.characteristics[BLECharacteristicsID.ProgramSensorStatus]) {
+                this.characteristics[BLECharacteristicsID.ProgramSensorStatus].removeEventListener("characteristicvaluechanged", this.notificationHandlerSensorStatus);
             }
-            //common device info characteristics
-            if (this.characteristics[BLECharacteristicsID.DevInfoHardwareRev]) {
-                this.characteristics[BLECharacteristicsID.DevInfoHardwareRev].removeEventListener("characteristicvaluechanged", this.notificationHandlerDevInfoHardwareRev);
+            if (this.characteristics[BLECharacteristicsID.ProgramPortCmdStatus]) {
+                this.characteristics[BLECharacteristicsID.ProgramPortCmdStatus].removeEventListener("characteristicvaluechanged", this.notificationHandlerPortCommandStatus);
             }
-            if (this.characteristics[BLECharacteristicsID.DevInfoLog]) {
-                this.characteristics[BLECharacteristicsID.DevInfoLog].removeEventListener("characteristicvaluechanged", this.notificationHandlerDeviceLog);
+            if (this.characteristics[BLECharacteristicsID.ProgramBotConfig]) {
+                this.characteristics[BLECharacteristicsID.ProgramBotConfig].removeEventListener("characteristicvaluechanged", this.notificationHandlerProgramBotConfig);
             }
-            if (this.productType == VEXProductTypes.VEXAIM) {
-                if (this.characteristics[BLECharacteristicsID.AIMTXData]) {
-                    this.characteristics[BLECharacteristicsID.AIMTXData].removeEventListener("characteristicvaluechanged", this.notificationHandlerAIMTXData);
-                }
-                if (this.characteristics[BLECharacteristicsID.AIMTXUser]) {
-                    this.characteristics[BLECharacteristicsID.AIMTXUser].removeEventListener("characteristicvaluechanged", this.notificationHandlerAIMTXUser);
-                }
-                if (this.characteristics[BLECharacteristicsID.AIMRemoteControlStatus]) {
-                    this.characteristics[BLECharacteristicsID.AIMRemoteControlStatus].removeEventListener("characteristicvaluechanged", this.notificationHandlerAIMRemoteControlStatus);
-                }
-                if (this.characteristics[BLECharacteristicsID.AIMRemoteControlCommand]) {
-                    this.characteristics[BLECharacteristicsID.AIMRemoteControlCommand].removeEventListener("characteristicvaluechanged", this.notificationHandlerAIMRemoteControlCommand);
-                }
-                if (this.characteristics[BLECharacteristicsID.AIMRemoteControlAIStatus]) {
-                    this.characteristics[BLECharacteristicsID.AIMRemoteControlAIStatus].removeEventListener("characteristicvaluechanged", this.notificationHandlerAIMRemoteControlAIStatus);
-                }
+        }
+        if (this.productType == VEXProductTypes.VEXGO || this.productType == VEXProductTypes.VEX123Puck || this.productType == VEXProductTypes.OneStickController) {
+            if (this.characteristics[BLECharacteristicsID.OADImageID]) {
+                this.characteristics[BLECharacteristicsID.OADImageID].removeEventListener("characteristicvaluechanged", this.notificationHandlerOADImageID);
             }
-            //IQ2 /EXP/ V5
-            if (this.productType == VEXProductTypes.VEXIQ2Brain || this.productType == VEXProductTypes.VEXEXPBrain || this.productType == VEXProductTypes.V5_Brain) {
-                if (this.characteristics[BLECharacteristicsID.AIMTXData]) {
-                    this.characteristics[BLECharacteristicsID.AIMTXData].removeEventListener("characteristicvaluechanged", this.notificationHandlerAIMTXData);
-                }
-                if (this.characteristics[BLECharacteristicsID.AIMTXUser]) {
-                    this.characteristics[BLECharacteristicsID.AIMTXUser].removeEventListener("characteristicvaluechanged", this.notificationHandlerAIMTXUser);
-                }
+            if (this.characteristics[BLECharacteristicsID.OADImageCtrl]) {
+                this.characteristics[BLECharacteristicsID.OADImageCtrl].removeEventListener("characteristicvaluechanged", this.notificationHandlerOADImageCtrl);
             }
-            this.characteristics[BLECharacteristicsID.ProgramCommand] = undefined;
-            this.characteristics[BLECharacteristicsID.ProgramSensorStatus] = undefined;
-            this.characteristics[BLECharacteristicsID.ProgramPortCmdStatus] = undefined;
-            this.characteristics[BLECharacteristicsID.ProgramBotConfig] = undefined;
-            this.characteristics[BLECharacteristicsID.OADImageID] = undefined;
-            this.characteristics[BLECharacteristicsID.OADImageCtrl] = undefined;
-            this.characteristics[BLECharacteristicsID.OADImageBlock] = undefined;
-            this.characteristics[BLECharacteristicsID.DevInfoHardwareRev] = undefined;
-            this.characteristics[BLECharacteristicsID.DevInfoLog] = undefined;
-            this.characteristics[BLECharacteristicsID.AIMTXData] = undefined;
-            this.characteristics[BLECharacteristicsID.AIMRXData] = undefined;
-            this.characteristics[BLECharacteristicsID.AIMRemoteControlStatus] = undefined;
-            this.characteristics[BLECharacteristicsID.AIMRemoteControlCommand] = undefined;
-            this.characteristics[BLECharacteristicsID.AIMRemoteControlAIStatus] = undefined;
-            this.lastPortCommandStatus = undefined;
-            this.lastProgramSensorStatus = undefined;
-        });
+            if (this.characteristics[BLECharacteristicsID.OADImageBlock]) {
+                this.characteristics[BLECharacteristicsID.OADImageBlock].removeEventListener("characteristicvaluechanged", this.notificationHandlerOADImageBlock);
+            }
+        }
+        //common device info characteristics
+        if (this.characteristics[BLECharacteristicsID.DevInfoHardwareRev]) {
+            this.characteristics[BLECharacteristicsID.DevInfoHardwareRev].removeEventListener("characteristicvaluechanged", this.notificationHandlerDevInfoHardwareRev);
+        }
+        if (this.characteristics[BLECharacteristicsID.DevInfoLog]) {
+            this.characteristics[BLECharacteristicsID.DevInfoLog].removeEventListener("characteristicvaluechanged", this.notificationHandlerDeviceLog);
+        }
+        if (this.productType == VEXProductTypes.VEXAIM) {
+            if (this.characteristics[BLECharacteristicsID.AIMTXData]) {
+                this.characteristics[BLECharacteristicsID.AIMTXData].removeEventListener("characteristicvaluechanged", this.notificationHandlerAIMTXData);
+            }
+            if (this.characteristics[BLECharacteristicsID.AIMTXUser]) {
+                this.characteristics[BLECharacteristicsID.AIMTXUser].removeEventListener("characteristicvaluechanged", this.notificationHandlerAIMTXUser);
+            }
+            if (this.characteristics[BLECharacteristicsID.AIMRemoteControlStatus]) {
+                this.characteristics[BLECharacteristicsID.AIMRemoteControlStatus].removeEventListener("characteristicvaluechanged", this.notificationHandlerAIMRemoteControlStatus);
+            }
+            if (this.characteristics[BLECharacteristicsID.AIMRemoteControlCommand]) {
+                this.characteristics[BLECharacteristicsID.AIMRemoteControlCommand].removeEventListener("characteristicvaluechanged", this.notificationHandlerAIMRemoteControlCommand);
+            }
+            if (this.characteristics[BLECharacteristicsID.AIMRemoteControlAIStatus]) {
+                this.characteristics[BLECharacteristicsID.AIMRemoteControlAIStatus].removeEventListener("characteristicvaluechanged", this.notificationHandlerAIMRemoteControlAIStatus);
+            }
+        }
+        //IQ2 /EXP/ V5
+        if (this.productType == VEXProductTypes.VEXIQ2Brain || this.productType == VEXProductTypes.VEXEXPBrain || this.productType == VEXProductTypes.V5_Brain) {
+            if (this.characteristics[BLECharacteristicsID.AIMTXData]) {
+                this.characteristics[BLECharacteristicsID.AIMTXData].removeEventListener("characteristicvaluechanged", this.notificationHandlerAIMTXData);
+            }
+            if (this.characteristics[BLECharacteristicsID.AIMTXUser]) {
+                this.characteristics[BLECharacteristicsID.AIMTXUser].removeEventListener("characteristicvaluechanged", this.notificationHandlerAIMTXUser);
+            }
+        }
+        this.characteristics[BLECharacteristicsID.ProgramCommand] = undefined;
+        this.characteristics[BLECharacteristicsID.ProgramSensorStatus] = undefined;
+        this.characteristics[BLECharacteristicsID.ProgramPortCmdStatus] = undefined;
+        this.characteristics[BLECharacteristicsID.ProgramBotConfig] = undefined;
+        this.characteristics[BLECharacteristicsID.OADImageID] = undefined;
+        this.characteristics[BLECharacteristicsID.OADImageCtrl] = undefined;
+        this.characteristics[BLECharacteristicsID.OADImageBlock] = undefined;
+        this.characteristics[BLECharacteristicsID.DevInfoHardwareRev] = undefined;
+        this.characteristics[BLECharacteristicsID.DevInfoLog] = undefined;
+        this.characteristics[BLECharacteristicsID.AIMTXData] = undefined;
+        this.characteristics[BLECharacteristicsID.AIMRXData] = undefined;
+        this.characteristics[BLECharacteristicsID.AIMRemoteControlStatus] = undefined;
+        this.characteristics[BLECharacteristicsID.AIMRemoteControlCommand] = undefined;
+        this.characteristics[BLECharacteristicsID.AIMRemoteControlAIStatus] = undefined;
+        this.lastPortCommandStatus = undefined;
+        this.lastProgramSensorStatus = undefined;
     }
-    doDownload() {
-        return __awaiter(this, void 0, void 0, function* () {
+    async doDownload() {
             log3.debug("download statemachine..");
             try {
                 switch (this.downloadState) {
                     case FWDownloadState.PaySize:
-                        yield writeCharacteristicValue(this.characteristics[BLECharacteristicsID.OADImageCtrl], Uint8Array.of(1));
+                        await writeCharacteristicValue(this.characteristics[BLECharacteristicsID.OADImageCtrl], Uint8Array.of(1));
                         break;
                     case FWDownloadState.ImgVerify:
                         this.firmwareImage.printHdr();
                         // generate header data
                         const headerData = this.firmwareImage.imgIdRequestData();
                         log3.debug(headerData);
-                        yield writeCharacteristicValue(this.characteristics[BLECharacteristicsID.OADImageID], headerData);
+                        await writeCharacteristicValue(this.characteristics[BLECharacteristicsID.OADImageID], headerData);
                         break;
                     case FWDownloadState.SendBlock:
                         if (this.oadLastStatus !== 0 && this.oadLastStatus !== VEXFWUpdateStatus.OAD_DL_COMPLETE) {
@@ -6590,11 +6542,11 @@ class VEXBLEDeviceManager {
                             log3.debug(`Sending Block: ${this.oadNextAddress} Size: ${blockData.length} Done %: ${percentDone}`);
                             // Progress callback to UI
                             this.updateFWUpdateProgress(done);
-                            yield writeCharacteristicValue(this.characteristics[BLECharacteristicsID.OADImageBlock], blockData);
+                            await writeCharacteristicValue(this.characteristics[BLECharacteristicsID.OADImageBlock], blockData);
                         }
                         else {
                             // sent all the data. send image enable
-                            yield writeCharacteristicValue(this.characteristics[BLECharacteristicsID.OADImageCtrl], Uint8Array.of(4));
+                            await writeCharacteristicValue(this.characteristics[BLECharacteristicsID.OADImageCtrl], Uint8Array.of(4));
                             // Progress callback to UI
                             this.updateFWUpdateProgress(100);
                         }
@@ -6608,7 +6560,6 @@ class VEXBLEDeviceManager {
                 log3.error("doDownload: error during update:", ex);
                 throw ex;
             }
-        });
     }
     clearRXTimeout() {
         if (this.ble_rxTimeout) {
@@ -6616,85 +6567,77 @@ class VEXBLEDeviceManager {
             this.ble_rxTimeout = undefined;
         }
     }
-    sendExecuteSingleCommand(command) {
-        return __awaiter(this, void 0, void 0, function* () {
-            if (this.isConnected() && this.characteristics[BLECharacteristicsID.ProgramCommand]) {
-                const raw = uint32ToByteArray(command);
-                const commandBuffer = new Uint8Array(5);
-                commandBuffer[0] = ProgramConst.PROG_CMD_EXE_SINGLE;
-                commandBuffer[1] = raw[0];
-                commandBuffer[2] = raw[1];
-                commandBuffer[3] = raw[2];
-                commandBuffer[4] = raw[3];
-                try {
-                    yield writeCharacteristicValue(this.characteristics[BLECharacteristicsID.ProgramCommand], commandBuffer);
-                }
-                catch (ex) {
-                    yield this.delay(200);
-                    log3.debug("sendExecuteSingleCommand: ", ex);
-                    log3.debug("sendExecuteSingleCommand: ", "Retry...");
-                    yield writeCharacteristicValue(this.characteristics[BLECharacteristicsID.ProgramCommand], commandBuffer);
-                }
+    async sendExecuteSingleCommand(command) {
+        if (this.isConnected() && this.characteristics[BLECharacteristicsID.ProgramCommand]) {
+            const raw = uint32ToByteArray(command);
+            const commandBuffer = new Uint8Array(5);
+            commandBuffer[0] = ProgramConst.PROG_CMD_EXE_SINGLE;
+            commandBuffer[1] = raw[0];
+            commandBuffer[2] = raw[1];
+            commandBuffer[3] = raw[2];
+            commandBuffer[4] = raw[3];
+            try {
+                await writeCharacteristicValue(this.characteristics[BLECharacteristicsID.ProgramCommand], commandBuffer);
             }
-        });
+            catch (ex) {
+                await this.delay(200);
+                log3.debug("sendExecuteSingleCommand: ", ex);
+                log3.debug("sendExecuteSingleCommand: ", "Retry...");
+                await writeCharacteristicValue(this.characteristics[BLECharacteristicsID.ProgramCommand], commandBuffer);
+            }
+        }
     }
-    sendExecuteSingleCommandAIM(command) {
-        return __awaiter(this, void 0, void 0, function* () {
-            if (!command) {
-                log3.debug("AimSendCommand received nil command, meaning command is invalid");
-                return;
+    async sendExecuteSingleCommandAIM(command) {
+        if (!command) {
+            log3.debug("AimSendCommand received nil command, meaning command is invalid");
+            return;
+        }
+        const value = command.toUin8Array();
+        if (this.isConnected() && this.characteristics[BLECharacteristicsID.AIMRemoteControlCommand]) {
+            try {
+                await writeCharacteristicValue(this.characteristics[BLECharacteristicsID.AIMRemoteControlCommand], value);
             }
-            const value = command.toUin8Array();
-            if (this.isConnected() && this.characteristics[BLECharacteristicsID.AIMRemoteControlCommand]) {
-                try {
-                    yield writeCharacteristicValue(this.characteristics[BLECharacteristicsID.AIMRemoteControlCommand], value);
-                }
-                catch (ex) {
-                    yield this.delay(200);
-                    log3.debug("sendExecuteSingleCommandAIM: ", ex);
-                    log3.debug("sendExecuteSingleCommandAIM: ", "Retry...");
-                    yield writeCharacteristicValue(this.characteristics[BLECharacteristicsID.AIMRemoteControlCommand], value);
-                }
+            catch (ex) {
+                await this.delay(200);
+                log3.debug("sendExecuteSingleCommandAIM: ", ex);
+                log3.debug("sendExecuteSingleCommandAIM: ", "Retry...");
+                await writeCharacteristicValue(this.characteristics[BLECharacteristicsID.AIMRemoteControlCommand], value);
             }
-        });
+        }
     }
-    sendExecuteMultiCommand(commands) {
-        return __awaiter(this, void 0, void 0, function* () {
-            if (this.isConnected() && this.characteristics[BLECharacteristicsID.ProgramCommand]) {
-                const commandBuffer = new Uint8Array(commands.length * 5);
-                for (let i = 0; i < commands.length; i++) {
-                    const raw = uint32ToByteArray(commands[i]);
-                    if (i < 4) {
-                        const offset = i * 5;
-                        commandBuffer[offset + 0] = ProgramConst.PROG_CMD_EXE_SINGLE;
-                        commandBuffer[offset + 1] = raw[0];
-                        commandBuffer[offset + 2] = raw[1];
-                        commandBuffer[offset + 3] = raw[2];
-                        commandBuffer[offset + 4] = raw[3];
-                    }
-                }
-                try {
-                    yield writeCharacteristicValue(this.characteristics[BLECharacteristicsID.ProgramCommand], commandBuffer);
-                }
-                catch (ex) {
-                    yield this.delay(200);
-                    log3.debug("sendExecuteMultiCommand: ", ex);
-                    log3.debug("sendExecuteMultiCommand: ", "Retry...");
-                    yield writeCharacteristicValue(this.characteristics[BLECharacteristicsID.ProgramCommand], commandBuffer);
+    async sendExecuteMultiCommand(commands) {
+        if (this.isConnected() && this.characteristics[BLECharacteristicsID.ProgramCommand]) {
+            const commandBuffer = new Uint8Array(commands.length * 5);
+            for (let i = 0; i < commands.length; i++) {
+                const raw = uint32ToByteArray(commands[i]);
+                if (i < 4) {
+                    const offset = i * 5;
+                    commandBuffer[offset + 0] = ProgramConst.PROG_CMD_EXE_SINGLE;
+                    commandBuffer[offset + 1] = raw[0];
+                    commandBuffer[offset + 2] = raw[1];
+                    commandBuffer[offset + 3] = raw[2];
+                    commandBuffer[offset + 4] = raw[3];
                 }
             }
-        });
+            try {
+                await writeCharacteristicValue(this.characteristics[BLECharacteristicsID.ProgramCommand], commandBuffer);
+            }
+            catch (ex) {
+                await this.delay(200);
+                log3.debug("sendExecuteMultiCommand: ", ex);
+                log3.debug("sendExecuteMultiCommand: ", "Retry...");
+                await writeCharacteristicValue(this.characteristics[BLECharacteristicsID.ProgramCommand], commandBuffer);
+            }
+        }
     }
     processDevLog(value) {
-        return __awaiter(this, void 0, void 0, function* () {
-            if (!value)
-                return;
-            //const dataUint8Arr = new Uint8Array(value);
-            let logStr = new TextDecoder("utf-8").decode(value);
-            let parts = logStr.split("\r");
-            parts.forEach(element => {
-                log3.debug(`Brain Log: ${element})`);
-            });
+        if (!value)
+            return;
+        //const dataUint8Arr = new Uint8Array(value);
+        let logStr = new TextDecoder("utf-8").decode(value);
+        let parts = logStr.split("\r");
+        parts.forEach(element => {
+            log3.debug(`Brain Log: ${element})`);
         });
     }
     //controller
@@ -6766,41 +6709,37 @@ class VEXBLEDeviceManager {
      * @param driveSensi
      * @param turnSensi
      */
-    setControlDriveStickType(newType, driveSensi = 50, turnSensi = 25) {
-        return __awaiter(this, void 0, void 0, function* () {
-            if (this.isConnected() && this.characteristics[BLECharacteristicsID.ProgramCommand]) {
-                const value = new Uint8Array([ProgramConst.PROG_CMD_SET_STICK_MODE_CMD, newType, driveSensi, turnSensi]);
-                try {
-                    yield writeCharacteristicValue(this.characteristics[BLECharacteristicsID.ProgramCommand], value);
-                }
-                catch (ex) {
-                    yield this.delay(200);
-                    log3.debug("setControlDriveStickType: ", ex);
-                    log3.debug("setControlDriveStickType: ", "Retry...");
-                    yield writeCharacteristicValue(this.characteristics[BLECharacteristicsID.ProgramCommand], value);
-                }
-            }
-        });
-    }
-    controllerLoopRun() {
-        return __awaiter(this, void 0, void 0, function* () {
-            this.isControllerUpdateRunning = true;
+    async setControlDriveStickType(newType, driveSensi = 50, turnSensi = 25) {
+        if (this.isConnected() && this.characteristics[BLECharacteristicsID.ProgramCommand]) {
+            const value = new Uint8Array([ProgramConst.PROG_CMD_SET_STICK_MODE_CMD, newType, driveSensi, turnSensi]);
             try {
-                while (this.isControllerUpdateRunning) {
-                    try {
-                        yield this.controllerUpdate();
-                        yield this.delay(this.controllerUpdateInterval * 1000);
-                        //log3.debug("controller update loop running..")
-                    }
-                    catch (error) {
-                        log3.debug("controllerLoopRun: ", error);
-                    }
+                await writeCharacteristicValue(this.characteristics[BLECharacteristicsID.ProgramCommand], value);
+            }
+            catch (ex) {
+                await this.delay(200);
+                log3.debug("setControlDriveStickType: ", ex);
+                log3.debug("setControlDriveStickType: ", "Retry...");
+                await writeCharacteristicValue(this.characteristics[BLECharacteristicsID.ProgramCommand], value);
+            }
+        }
+    }
+    async controllerLoopRun() {
+        this.isControllerUpdateRunning = true;
+        try {
+            while (this.isControllerUpdateRunning) {
+                try {
+                    await this.controllerUpdate();
+                    await this.delay(this.controllerUpdateInterval * 1000);
+                    //log3.debug("controller update loop running..")
+                }
+                catch (error) {
+                    log3.debug("controllerLoopRun: ", error);
                 }
             }
-            catch (error) {
-                log3.debug("controllerLoopRun: ", error);
-            }
-        });
+        }
+        catch (error) {
+            log3.debug("controllerLoopRun: ", error);
+        }
     }
     controllerLoopStop() {
         this.isControllerUpdateRunning = false;
@@ -6811,22 +6750,20 @@ class VEXBLEDeviceManager {
             setTimeout(() => { resolve(payload); }, ms);
         });
     }
-    exponentialBackoff(max, delay, toTry, success, fail) {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                const result = yield toTry();
-                success(result);
+    async exponentialBackoff(max, delay, toTry, success, fail) {
+        try {
+            const result = await toTry();
+            success(result);
+        }
+        catch (error) {
+            if (max === 0) {
+                return fail();
             }
-            catch (error) {
-                if (max === 0) {
-                    return fail();
-                }
-                this.time("Retrying in " + delay + "s... (" + max + " tries left)");
-                setTimeout(() => {
-                    this.exponentialBackoff(--max, delay * 2, toTry, success, fail);
-                }, delay * 1000);
-            }
-        });
+            this.time("Retrying in " + delay + "s... (" + max + " tries left)");
+            setTimeout(() => {
+                this.exponentialBackoff(--max, delay * 2, toTry, success, fail);
+            }, delay * 1000);
+        }
     }
     appendArrayBuffer(buffer1, buffer2) {
         const length1 = buffer1 ? buffer1.byteLength : 0;
@@ -7161,95 +7098,85 @@ class VEXBLEFirmware {
         this.productType = productType;
     }
     // public
-    getVersionFromServer(firmwareType = VEXFirmwareType.Release, productType = VEXProductTypes.Unknown) {
-        return __awaiter(this, void 0, void 0, function* () {
-            const versionFileNameFromServer = yield this.getFirmwareFileNameFromServer(firmwareType, productType);
-            const versionParts = versionFileNameFromServer.split("_");
-            if (versionParts.length > 5) {
-                return new VEXFirmwareVersion(parseInt(versionParts[versionParts.length - 4], 10), parseInt(versionParts[versionParts.length - 3], 10), parseInt(versionParts[versionParts.length - 2], 10), parseInt(versionParts[versionParts.length - 1], 10));
-            }
-            return new VEXFirmwareVersion(0, 0, 0, 0);
-        });
+    async getVersionFromServer(firmwareType = VEXFirmwareType.Release, productType = VEXProductTypes.Unknown) {
+        const versionFileNameFromServer = await this.getFirmwareFileNameFromServer(firmwareType, productType);
+        const versionParts = versionFileNameFromServer.split("_");
+        if (versionParts.length > 5) {
+            return new VEXFirmwareVersion(parseInt(versionParts[versionParts.length - 4], 10), parseInt(versionParts[versionParts.length - 3], 10), parseInt(versionParts[versionParts.length - 2], 10), parseInt(versionParts[versionParts.length - 1], 10));
+        }
+        return new VEXFirmwareVersion(0, 0, 0, 0);
     }
-    getImageFromServer(firmwareType = VEXFirmwareType.Release) {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                const fileName = yield this.getFirmwareFileNameFromServer(firmwareType, this.productType);
-                const productName = this.getProductName();
-                if (fileName && productName) {
-                    let vexosUrl = `https://content.vexrobotics.com/vexos/public${(firmwareType !== VEXFirmwareType.Release) ? "_beta" : ""}/${productName}/${fileName}.vexos`;
-                    if (firmwareType === VEXFirmwareType.Bootloader && productName == "Go") {
-                        vexosUrl = `https://content.vexrobotics.com/vexos/public_beta/Go/Bootloader/${fileName}.vexos`;
-                    }
-                    const serverImage = yield this.getFileFromServer(vexosUrl, "text", undefined, undefined, (percent) => {
-                        log4.debug("dowloading vexos from server (%) : ", percent * 100);
-                    }).catch((reason) => { throw reason; });
-                    return (serverImage) ? serverImage : "";
-                }
-                else {
-                    return "";
-                }
-            }
-            catch (ex) {
-                console.error("error downloading vexos from server: ", ex);
-                return "";
-            }
-        });
-    }
-    getVersionFromLocalFile(firmwareType = VEXFirmwareType.Release, productType = VEXProductTypes.Unknown) {
-        return __awaiter(this, void 0, void 0, function* () {
-            const versionFileNameFromLocal = yield this.getFirmwareFileNameFromLocal(firmwareType, productType);
-            if (!versionFileNameFromLocal) {
-                log4.debug("firmware not available.");
-                return new VEXFirmwareVersion(0, 0, 0, 0);
-            }
-            const versionParts = versionFileNameFromLocal.split("_");
-            if (versionParts.length < 5) {
-                // TODO load from local resources
-            }
-            if (versionParts.length > 5) {
-                return new VEXFirmwareVersion(parseInt(versionParts[versionParts.length - 4], 10), parseInt(versionParts[versionParts.length - 3], 10), parseInt(versionParts[versionParts.length - 2], 10), parseInt(versionParts[versionParts.length - 1], 10));
-            }
-            return new VEXFirmwareVersion(0, 0, 0, 0);
-        });
-    }
-    getImageFromLocalFile(firmwareType = VEXFirmwareType.Release, contentType = "Hex") {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                const resourcePath = getResourceFolder(); // LocalStorage module?
-                const productName = this.getProductName();
-                if (!productName) {
-                    return undefined;
-                }
-                const localImageName = yield this.getFirmwareFileNameFromLocal(firmwareType);
-                if (!localImageName) {
-                    return undefined;
-                }
-                // get the image from local resources folder
-                let localVEXOSURL = `${resourcePath}/vexos/public${firmwareType !== VEXFirmwareType.Release ? "_beta" : ""}/${productName}/${localImageName}.vexos`;
+    async getImageFromServer(firmwareType = VEXFirmwareType.Release) {
+        try {
+            const fileName = await this.getFirmwareFileNameFromServer(firmwareType, this.productType);
+            const productName = this.getProductName();
+            if (fileName && productName) {
+                let vexosUrl = `https://content.vexrobotics.com/vexos/public${(firmwareType !== VEXFirmwareType.Release) ? "_beta" : ""}/${productName}/${fileName}.vexos`;
                 if (firmwareType === VEXFirmwareType.Bootloader && productName == "Go") {
-                    localVEXOSURL = `${resourcePath}/vexos/public_beta/Go/Bootloader/${localImageName}.vexos`;
+                    vexosUrl = `https://content.vexrobotics.com/vexos/public_beta/Go/Bootloader/${fileName}.vexos`;
                 }
-                let responseType = (contentType === "Hex") ? "text" : "arraybuffer";
-                const localImage = yield this.getFileFromServer(localVEXOSURL, responseType, undefined, undefined).catch((reason) => { throw reason; });
-                return (localImage) ? localImage : "";
+                const serverImage = await this.getFileFromServer(vexosUrl, "text", undefined, undefined, (percent) => {
+                    log4.debug("dowloading vexos from server (%) : ", percent * 100);
+                });
+                return (serverImage) ? serverImage : "";
             }
-            catch (ex) {
-                console.error("Error getting vexos from local file:", ex);
+            else {
                 return "";
             }
-        });
+        }
+        catch (ex) {
+            console.error("error downloading vexos from server: ", ex);
+            return "";
+        }
+    }
+    async getVersionFromLocalFile(firmwareType = VEXFirmwareType.Release, productType = VEXProductTypes.Unknown) {
+        const versionFileNameFromLocal = await this.getFirmwareFileNameFromLocal(firmwareType, productType);
+        if (!versionFileNameFromLocal) {
+            log4.debug("firmware not available.");
+            return new VEXFirmwareVersion(0, 0, 0, 0);
+        }
+        const versionParts = versionFileNameFromLocal.split("_");
+        if (versionParts.length < 5) {
+            // TODO load from local resources
+        }
+        if (versionParts.length > 5) {
+            return new VEXFirmwareVersion(parseInt(versionParts[versionParts.length - 4], 10), parseInt(versionParts[versionParts.length - 3], 10), parseInt(versionParts[versionParts.length - 2], 10), parseInt(versionParts[versionParts.length - 1], 10));
+        }
+        return new VEXFirmwareVersion(0, 0, 0, 0);
+    }
+    async getImageFromLocalFile(firmwareType = VEXFirmwareType.Release, contentType = "Hex") {
+        try {
+            const resourcePath = getResourceFolder(); // LocalStorage module?
+            const productName = this.getProductName();
+            if (!productName) {
+                return undefined;
+            }
+            const localImageName = await this.getFirmwareFileNameFromLocal(firmwareType);
+            if (!localImageName) {
+                return undefined;
+            }
+            // get the image from local resources folder
+            let localVEXOSURL = `${resourcePath}/vexos/public${firmwareType !== VEXFirmwareType.Release ? "_beta" : ""}/${productName}/${localImageName}.vexos`;
+            if (firmwareType === VEXFirmwareType.Bootloader && productName == "Go") {
+                localVEXOSURL = `${resourcePath}/vexos/public_beta/Go/Bootloader/${localImageName}.vexos`;
+            }
+            let responseType = (contentType === "Hex") ? "text" : "arraybuffer";
+            const localImage = await this.getFileFromServer(localVEXOSURL, responseType, undefined, undefined).catch((reason) => { throw reason; });
+            return (localImage) ? localImage : "";
+        }
+        catch (ex) {
+            console.error("Error getting vexos from local file:", ex);
+            return "";
+        }
     }
     getImageFromHex(hex) {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                const image = new VEXBLEFirmwareImage(hex);
-                return image;
-            }
-            catch (ex) {
-                console.error("error during processing hex:", ex);
-            }
-        });
+        try {
+            const image = new VEXBLEFirmwareImage(hex);
+            return image;
+        }
+        catch (ex) {
+            console.error("error during processing hex:", ex);
+        }
     }
     // helpers
     getProductName(productType) {
@@ -7272,174 +7199,168 @@ class VEXBLEFirmware {
         }
         return "";
     }
-    getFirmwareFileNameFromServer(firmwareType = VEXFirmwareType.Release, productType = VEXProductTypes.Unknown) {
-        return __awaiter(this, void 0, void 0, function* () {
-            let catalogURL = "";
-            let imageFileName;
-            if (productType === VEXProductTypes.Unknown) {
-                if (this.productType === VEXProductTypes.Unknown) {
-                    return "";
-                }
-                productType = this.productType;
+    async getFirmwareFileNameFromServer(firmwareType = VEXFirmwareType.Release, productType = VEXProductTypes.Unknown) {
+        let catalogURL = "";
+        let imageFileName;
+        if (productType === VEXProductTypes.Unknown) {
+            if (this.productType === VEXProductTypes.Unknown) {
+                return "";
             }
-            try {
-                if (firmwareType === VEXFirmwareType.Beta) {
-                    if (productType === VEXProductTypes.VEXGO) {
-                        catalogURL = `https://content.vexrobotics.com/vexos/public_beta/Go/catalog.txt`;
-                    }
-                    else if (productType === VEXProductTypes.VEX123Puck) {
-                        catalogURL = `https://content.vexrobotics.com/vexos/public_beta/123/catalog.txt`;
-                    }
-                    else if (productType === VEXProductTypes.VEXCoder) {
-                        catalogURL = `https://content.vexrobotics.com/vexos/public_beta/Coder/catalog.txt`;
-                    }
-                    else if (productType === VEXProductTypes.VEXAIM) {
-                        catalogURL = `https://content.vexrobotics.com/vexos/public_beta/AIM/catalog.txt`;
-                    }
-                    else if (productType === VEXProductTypes.OneStickController) {
-                        catalogURL = `https://content.vexrobotics.com/vexos/public_beta/OneStick/catalog.txt`;
-                    }
-                    else {
-                        // This board is not recognized. Alert the user.
-                        return "";
-                    }
+            productType = this.productType;
+        }
+        try {
+            if (firmwareType === VEXFirmwareType.Beta) {
+                if (productType === VEXProductTypes.VEXGO) {
+                    catalogURL = `https://content.vexrobotics.com/vexos/public_beta/Go/catalog.txt`;
                 }
-                else if (firmwareType === VEXFirmwareType.Development) {
-                    if (productType === VEXProductTypes.VEXGO) {
-                        catalogURL = `https://content.vexrobotics.com/vexos/public_beta/Go/catalog_dev.txt`;
-                    }
-                    else if (productType === VEXProductTypes.VEX123Puck) {
-                        catalogURL = `https://content.vexrobotics.com/vexos/public_beta/123/catalog_dev.txt`;
-                    }
-                    else if (productType === VEXProductTypes.VEXCoder) {
-                        catalogURL = `https://content.vexrobotics.com/vexos/public_beta/Coder/catalog_dev.txt`;
-                    }
-                    else if (productType === VEXProductTypes.VEXAIM) {
-                        catalogURL = `https://content.vexrobotics.com/vexos/public_beta/AIM/catalog.txt`;
-                    }
-                    else if (productType === VEXProductTypes.OneStickController) {
-                        catalogURL = `https://content.vexrobotics.com/vexos/public_beta/OneStick/catalog.txt`;
-                    }
-                    else {
-                        // This board is not recognized. Alert the user.
-                        return "";
-                    }
+                else if (productType === VEXProductTypes.VEX123Puck) {
+                    catalogURL = `https://content.vexrobotics.com/vexos/public_beta/123/catalog.txt`;
                 }
-                else if (firmwareType === VEXFirmwareType.Bootloader) {
-                    if (productType === VEXProductTypes.VEXGO) {
-                        catalogURL = `https://content.vexrobotics.com/vexos/public_beta/Go/Bootloader/catalog.txt`;
-                    }
-                    else {
-                        // This board is not recognized. Alert the user.
-                        return "";
-                    }
+                else if (productType === VEXProductTypes.VEXCoder) {
+                    catalogURL = `https://content.vexrobotics.com/vexos/public_beta/Coder/catalog.txt`;
+                }
+                else if (productType === VEXProductTypes.VEXAIM) {
+                    catalogURL = `https://content.vexrobotics.com/vexos/public_beta/AIM/catalog.txt`;
+                }
+                else if (productType === VEXProductTypes.OneStickController) {
+                    catalogURL = `https://content.vexrobotics.com/vexos/public_beta/OneStick/catalog.txt`;
                 }
                 else {
-                    if (productType === VEXProductTypes.VEXGO) {
-                        catalogURL = `https://content.vexrobotics.com/vexos/public/Go/catalog.txt`;
-                    }
-                    else if (productType === VEXProductTypes.VEX123Puck) {
-                        catalogURL = `https://content.vexrobotics.com/vexos/public/123/catalog.txt`;
-                    }
-                    else if (productType === VEXProductTypes.VEXCoder) {
-                        catalogURL = `https://content.vexrobotics.com/vexos/public/Coder/catalog.txt`;
-                    }
-                    else if (productType === VEXProductTypes.VEXAIM) {
-                        catalogURL = `https://content.vexrobotics.com/vexos/public/AIM/catalog.txt`;
-                    }
-                    else if (productType === VEXProductTypes.OneStickController) {
-                        catalogURL = `https://content.vexrobotics.com/vexos/public/OneStick/catalog.txt`;
-                    }
-                    else {
-                        // This board is not recognized. Alert the user.
-                        return "";
-                    }
-                }
-                imageFileName = yield this.getFileFromServer(catalogURL, "text", undefined, undefined, (percent) => {
-                    log4.debug("dowloading catalog (%) : ", percent * 100);
-                }).catch((reason) => { throw reason; });
-                return (imageFileName) ? imageFileName : "";
-            }
-            catch (error) {
-                console.info("Error when fetching firmware catalog contents: ", error);
-                return "";
-            }
-        });
-    }
-    getFirmwareFileNameFromLocal(firmwareType = VEXFirmwareType.Release, productType = VEXProductTypes.Unknown) {
-        return __awaiter(this, void 0, void 0, function* () {
-            if (productType === VEXProductTypes.Unknown) {
-                if (this.productType === VEXProductTypes.Unknown) {
+                    // This board is not recognized. Alert the user.
                     return "";
                 }
-                productType = this.productType;
             }
-            try {
-                const resourcePath = getResourceFolder(); // LocalStorage module?
-                const productName = this.getProductName(productType);
-                if (!productName) {
-                    return undefined;
+            else if (firmwareType === VEXFirmwareType.Development) {
+                if (productType === VEXProductTypes.VEXGO) {
+                    catalogURL = `https://content.vexrobotics.com/vexos/public_beta/Go/catalog_dev.txt`;
                 }
-                // get the image name from local catalog
-                let localVEXOSCatalogURL = `${resourcePath}/vexos/public${(firmwareType !== VEXFirmwareType.Release) ? "_beta" : ""}/${productName}/catalog${(firmwareType === VEXFirmwareType.Development) ? "_dev" : ""}.txt`;
-                if (firmwareType === VEXFirmwareType.Bootloader && productType == VEXProductTypes.VEXGO) {
-                    localVEXOSCatalogURL = `${resourcePath}/vexos/public_beta/Go/Bootloader/catalog.txt`;
+                else if (productType === VEXProductTypes.VEX123Puck) {
+                    catalogURL = `https://content.vexrobotics.com/vexos/public_beta/123/catalog_dev.txt`;
                 }
-                const localImageName = yield this.getFileFromServer(localVEXOSCatalogURL, "text", undefined, undefined).catch((reason) => { throw reason; });
-                return (localImageName) ? localImageName : "";
+                else if (productType === VEXProductTypes.VEXCoder) {
+                    catalogURL = `https://content.vexrobotics.com/vexos/public_beta/Coder/catalog_dev.txt`;
+                }
+                else if (productType === VEXProductTypes.VEXAIM) {
+                    catalogURL = `https://content.vexrobotics.com/vexos/public_beta/AIM/catalog.txt`;
+                }
+                else if (productType === VEXProductTypes.OneStickController) {
+                    catalogURL = `https://content.vexrobotics.com/vexos/public_beta/OneStick/catalog.txt`;
+                }
+                else {
+                    // This board is not recognized. Alert the user.
+                    return "";
+                }
             }
-            catch (error) {
-                console.error("Error when fetching firmware catalog contents: ", error);
+            else if (firmwareType === VEXFirmwareType.Bootloader) {
+                if (productType === VEXProductTypes.VEXGO) {
+                    catalogURL = `https://content.vexrobotics.com/vexos/public_beta/Go/Bootloader/catalog.txt`;
+                }
+                else {
+                    // This board is not recognized. Alert the user.
+                    return "";
+                }
+            }
+            else {
+                if (productType === VEXProductTypes.VEXGO) {
+                    catalogURL = `https://content.vexrobotics.com/vexos/public/Go/catalog.txt`;
+                }
+                else if (productType === VEXProductTypes.VEX123Puck) {
+                    catalogURL = `https://content.vexrobotics.com/vexos/public/123/catalog.txt`;
+                }
+                else if (productType === VEXProductTypes.VEXCoder) {
+                    catalogURL = `https://content.vexrobotics.com/vexos/public/Coder/catalog.txt`;
+                }
+                else if (productType === VEXProductTypes.VEXAIM) {
+                    catalogURL = `https://content.vexrobotics.com/vexos/public/AIM/catalog.txt`;
+                }
+                else if (productType === VEXProductTypes.OneStickController) {
+                    catalogURL = `https://content.vexrobotics.com/vexos/public/OneStick/catalog.txt`;
+                }
+                else {
+                    // This board is not recognized. Alert the user.
+                    return "";
+                }
+            }
+            imageFileName = await this.getFileFromServer(catalogURL, "text", undefined, undefined, (percent) => {
+                log4.debug("dowloading catalog (%) : ", percent * 100);
+            }).catch((reason) => { throw reason; });
+            return (imageFileName) ? imageFileName : "";
+        }
+        catch (error) {
+            console.info("Error when fetching firmware catalog contents: ", error);
+            return "";
+        }
+    }
+    async getFirmwareFileNameFromLocal(firmwareType = VEXFirmwareType.Release, productType = VEXProductTypes.Unknown) {
+        if (productType === VEXProductTypes.Unknown) {
+            if (this.productType === VEXProductTypes.Unknown) {
                 return "";
             }
-        });
+            productType = this.productType;
+        }
+        try {
+            const resourcePath = getResourceFolder(); // LocalStorage module?
+            const productName = this.getProductName(productType);
+            if (!productName) {
+                return undefined;
+            }
+            // get the image name from local catalog
+            let localVEXOSCatalogURL = `${resourcePath}/vexos/public${(firmwareType !== VEXFirmwareType.Release) ? "_beta" : ""}/${productName}/catalog${(firmwareType === VEXFirmwareType.Development) ? "_dev" : ""}.txt`;
+            if (firmwareType === VEXFirmwareType.Bootloader && productType == VEXProductTypes.VEXGO) {
+                localVEXOSCatalogURL = `${resourcePath}/vexos/public_beta/Go/Bootloader/catalog.txt`;
+            }
+            const localImageName = await this.getFileFromServer(localVEXOSCatalogURL, "text", undefined, undefined).catch((reason) => { throw reason; });
+            return (localImageName) ? localImageName : "";
+        }
+        catch (error) {
+            console.error("Error when fetching firmware catalog contents: ", error);
+            return "";
+        }
     }
     getFileFromServer(url, responseType, user, pass, progress) {
-        return __awaiter(this, void 0, void 0, function* () {
-            return new Promise((resolve, reject) => {
-                const xhr = new XMLHttpRequest();
-                xhr.open("GET", url, true);
-                // xhr.setRequestHeader("Cache-Control", "no-cache,max-age=0");
-                xhr.responseType = responseType;
-                // yea, this is bad, but for now we hard code some stuff
-                // if (user !== undefined && pass !== undefined) {
-                //     xhr.withCredentials = true;
-                //     xhr.setRequestHeader("Authorization", "Basic " + btoa(user + ":" + pass));
-                // } else if (user !== undefined) {
-                //     xhr.withCredentials = true;
-                //     xhr.setRequestHeader("Authorization", "Basic " + user);
-                // }
-                xhr.onload = () => {
-                    if (xhr.status === 200) {
-                        resolve(xhr.response);
-                    }
-                    if (xhr.status === 401) {
-                        // auth error
-                        resolve(undefined);
+        return new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open("GET", url, true);
+            // xhr.setRequestHeader("Cache-Control", "no-cache,max-age=0");
+            xhr.responseType = responseType;
+            // yea, this is bad, but for now we hard code some stuff
+            // if (user !== undefined && pass !== undefined) {
+            //     xhr.withCredentials = true;
+            //     xhr.setRequestHeader("Authorization", "Basic " + btoa(user + ":" + pass));
+            // } else if (user !== undefined) {
+            //     xhr.withCredentials = true;
+            //     xhr.setRequestHeader("Authorization", "Basic " + user);
+            // }
+            xhr.onload = () => {
+                if (xhr.status === 200) {
+                    resolve(xhr.response);
+                }
+                if (xhr.status === 401) {
+                    // auth error
+                    resolve(undefined);
+                }
+                else {
+                    reject(Error(`failed to get file from url: ${url}; error code: ` + xhr.statusText));
+                }
+            };
+            xhr.onerror = () => {
+                reject(Error("There was a network error."));
+            };
+            if (progress !== undefined) {
+                // progress on transfers from the server to the client (downloads)
+                xhr.onprogress = (oEvent) => {
+                    if (oEvent.lengthComputable) {
+                        const percentComplete = oEvent.loaded / oEvent.total;
+                        if (progress !== undefined) {
+                            progress(percentComplete);
+                        }
                     }
                     else {
-                        reject(Error(`failed to get file from url: ${url}; error code: ` + xhr.statusText));
+                        // Unable to compute progress information since the total size is unknown
                     }
                 };
-                xhr.onerror = () => {
-                    reject(Error("There was a network error."));
-                };
-                if (progress !== undefined) {
-                    // progress on transfers from the server to the client (downloads)
-                    xhr.onprogress = (oEvent) => {
-                        if (oEvent.lengthComputable) {
-                            const percentComplete = oEvent.loaded / oEvent.total;
-                            if (progress !== undefined) {
-                                progress(percentComplete);
-                            }
-                        }
-                        else {
-                            // Unable to compute progress information since the total size is unknown
-                        }
-                    };
-                }
-                xhr.send();
-            });
+            }
+            xhr.send();
         });
     }
 }
@@ -8731,13 +8652,11 @@ class VEXCDCDevice {
     * @param vid optional vid for where to write the file
     */
     saveFileToRobot(filename, data, progressCallback, vid) {
-        return __awaiter(this, void 0, void 0, function* () {
-            return this.downloadDataAsync(filename, data, (progressValue, current, total) => {
-                if (progressCallback) {
-                    progressCallback(progressValue);
-                }
-            }, vid);
-        });
+        return this.downloadDataAsync(filename, data, (progressValue, current, total) => {
+            if (progressCallback) {
+                progressCallback(progressValue);
+            }
+        }, vid);
     }
     /**
     * Generic function for reading file from the robot.
@@ -8746,27 +8665,25 @@ class VEXCDCDevice {
     * @param vid optional vid for where to find the file
     * @returns a promise that resolves to the file data as an Uint8Array or null if the file does not exist
     */
-    readFileFromRobot(filename, progressCallback, vid) {
-        return __awaiter(this, void 0, void 0, function* () {
-            log5.info("readFileFromRobot called for:", filename, vid);
-            const robotFiles = yield this.getDirectory(vid);
-            log5.debug("readFileFromRobot - file on robot: " + JSON.stringify(robotFiles));
-            const targetFile = robotFiles.find((file) => file.name === filename);
-            log5.debug("readFileFromRobot - target file: " + JSON.stringify(targetFile));
-            if (!targetFile) {
-                return null;
-            }
-            // with the info about the file on the robot, now we just need to read it and return the data.
-            return new Promise((resolve, reject) => {
-                this.uploadData(filename, targetFile.size, progressCallback, (success, data) => {
-                    if (success) {
-                        resolve(data);
-                    }
-                    else {
-                        reject(new Error("error reading file"));
-                    }
-                }, vid);
-            });
+    async readFileFromRobot(filename, progressCallback, vid) {
+        log5.info("readFileFromRobot called for:", filename, vid);
+        const robotFiles = await this.getDirectory(vid);
+        log5.debug("readFileFromRobot - file on robot: " + JSON.stringify(robotFiles));
+        const targetFile = robotFiles.find((file) => file.name === filename);
+        log5.debug("readFileFromRobot - target file: " + JSON.stringify(targetFile));
+        if (!targetFile) {
+            return null;
+        }
+        // with the info about the file on the robot, now we just need to read it and return the data.
+        return await new Promise((resolve, reject) => {
+            this.uploadData(filename, targetFile.size, progressCallback, (success, data) => {
+                if (success) {
+                    resolve(data);
+                }
+                else {
+                    reject(new Error("error reading file"));
+                }
+            }, vid);
         });
     }
     /**
@@ -8861,108 +8778,106 @@ class VEXCDCDevice {
             }
         });
     }
-    downloadProgram(data, info, progressCallback) {
-        return __awaiter(this, void 0, void 0, function* () {
-            if (info.slot < 0 || info.slot > 7) {
-                log5.warn("slot is out of range");
-                return false;
+    async downloadProgram(data, info, progressCallback) {
+        if (info.slot < 0 || info.slot > 7) {
+            log5.warn("slot is out of range");
+            return false;
+        }
+        const buffer = new Uint8Array(data);
+        const path = `slot_${info.slot + 1}`;
+        // create iniFile
+        const ini = new VexINI();
+        ini.programSlotSet(info.slot);
+        ini.programNameSet(info.name);
+        ini.programDescriptionSet(info.description);
+        ini.programIconSet(info.icon);
+        ini.projectIdeSet(info.ide);
+        for (const port of info.ports) {
+            if (port && port.port >= 1 && port.port <= 21 && port.label) {
+                ini.addPortConfig(port.port, port.label);
             }
-            return new Promise((resolve, reject) => __awaiter(this, void 0, void 0, function* () {
-                const buffer = new Uint8Array(data);
-                const path = `slot_${info.slot + 1}`;
-                // create iniFile
-                const ini = new VexINI();
-                ini.programSlotSet(info.slot);
-                ini.programNameSet(info.name);
-                ini.programDescriptionSet(info.description);
-                ini.programIconSet(info.icon);
-                ini.projectIdeSet(info.ide);
-                for (const port of info.ports) {
-                    if (port && port.port >= 1 && port.port <= 21 && port.label) {
-                        ini.addPortConfig(port.port, port.label);
-                    }
-                }
-                for (const port of info.triports) {
-                    if (port &&
-                        port.port >= 1 && port.port <= 21 &&
-                        port.subport >= 0 && port.subport <= 7 &&
-                        port.label) {
-                        ini.addAdiPortConfig(port.port, port.subport, port.label);
-                    }
-                }
-                let controllerKey;
-                if (info.controller1) {
-                    for (controllerKey in info.controller1) {
-                        ini.addControllerConfig(0, controllerKey, info.controller1[controllerKey]);
-                    }
-                }
-                if (info.controller2) {
-                    for (controllerKey in info.controller2) {
-                        ini.addControllerConfig(1, controllerKey, info.controller2[controllerKey]);
-                    }
-                }
-                let vmUpdateNeeded = false;
-                let downloadState = DownloadState.None;
-                let vmProgress = 0;
-                let progProgress = 0;
-                const callBackAggregator = (progress) => {
-                    let finalProgress = 0;
-                    //error check
-                    if (progress == -1) {
-                        finalProgress = -1;
-                    }
-                    else if (vmUpdateNeeded) {
-                        finalProgress = (progProgress + vmProgress) / 2;
-                    }
-                    else {
-                        finalProgress = progProgress;
-                    }
-                    if (progressCallback) {
-                        progressCallback({ "progress": finalProgress, "state": downloadState });
-                    }
-                };
-                const callBackProgramDownload = (progress) => {
-                    downloadState = DownloadState.DownloadingProgram;
-                    progProgress = progress;
-                    callBackAggregator(progress);
-                };
-                const callBackVMDownload = (data) => {
-                    downloadState = data.state;
-                    if (data.state == DownloadState.DownloadingVM) {
-                        vmUpdateNeeded = true;
-                        vmProgress = data.progress;
-                        callBackAggregator(data.progress);
-                    }
-                };
-                let extType = 0;
-                const iniFile = new TextEncoder().encode(ini.createIni());
-                log5.debug("program options/ini parameters : ", info);
-                if (info.language === "python") {
-                    log5.debug("skipping vm check for python");
-                    // configure the download for the 
-                    const linkInfo = this.getVMLinkInfo();
-                    this.downloadAddressSet(linkInfo.loadAddress);
-                    this.linkFileSet(linkInfo.linkFileVID, linkInfo.linkFile);
-                    extType = linkInfo.extType;
-                }
-                else {
-                    // this should not be needed, but it should not hurt
-                    this.downloadAddressSet(VEXCDCDevice.USR_ADDRESS);
-                }
-                // download the user program
-                log5.info("downloading user project", this.downloadAddress);
-                const autorun = info && info.autorun ? info.autorun : false;
-                this.downloadAutoRunSet(autorun);
-                this.downloadProgramData(path, buffer, iniFile, undefined, callBackProgramDownload, (status) => {
-                    // put internal autorun back to default
-                    this.downloadAutoRunSet(true);
-                    this.downloadAddressSet(VEXCDCDevice.USR_ADDRESS);
-                    if (status === true)
-                        resolve(true); // SUCCESS
-                    else
-                        resolve(false); // ERROR_DOWNLOAD
-                }, extType);
-            }));
+        }
+        for (const port of info.triports) {
+            if (port &&
+                port.port >= 1 && port.port <= 21 &&
+                port.subport >= 0 && port.subport <= 7 &&
+                port.label) {
+                ini.addAdiPortConfig(port.port, port.subport, port.label);
+            }
+        }
+        let controllerKey;
+        if (info.controller1) {
+            for (controllerKey in info.controller1) {
+                ini.addControllerConfig(0, controllerKey, info.controller1[controllerKey]);
+            }
+        }
+        if (info.controller2) {
+            for (controllerKey in info.controller2) {
+                ini.addControllerConfig(1, controllerKey, info.controller2[controllerKey]);
+            }
+        }
+        let vmUpdateNeeded = false;
+        let downloadState = DownloadState.None;
+        let vmProgress = 0;
+        let progProgress = 0;
+        const callBackAggregator = (progress) => {
+            let finalProgress = 0;
+            //error check
+            if (progress == -1) {
+                finalProgress = -1;
+            }
+            else if (vmUpdateNeeded) {
+                finalProgress = (progProgress + vmProgress) / 2;
+            }
+            else {
+                finalProgress = progProgress;
+            }
+            if (progressCallback) {
+                progressCallback({ "progress": finalProgress, "state": downloadState });
+            }
+        };
+        const callBackProgramDownload = (progress) => {
+            downloadState = DownloadState.DownloadingProgram;
+            progProgress = progress;
+            callBackAggregator(progress);
+        };
+        const callBackVMDownload = (data) => {
+            downloadState = data.state;
+            if (data.state == DownloadState.DownloadingVM) {
+                vmUpdateNeeded = true;
+                vmProgress = data.progress;
+                callBackAggregator(data.progress);
+            }
+        };
+        let extType = 0;
+        const iniFile = new TextEncoder().encode(ini.createIni());
+        log5.debug("program options/ini parameters : ", info);
+        if (info.language === "python") {
+            log5.debug("skipping vm check for python");
+            // configure the download for the 
+            const linkInfo = this.getVMLinkInfo();
+            this.downloadAddressSet(linkInfo.loadAddress);
+            this.linkFileSet(linkInfo.linkFileVID, linkInfo.linkFile);
+            extType = linkInfo.extType;
+        }
+        else {
+            // this should not be needed, but it should not hurt
+            this.downloadAddressSet(VEXCDCDevice.USR_ADDRESS);
+        }
+        // download the user program
+        log5.info("downloading user project", this.downloadAddress);
+        const autorun = info && info.autorun ? info.autorun : false;
+        this.downloadAutoRunSet(autorun);
+        return await new Promise((resolve) => {
+            this.downloadProgramData(path, buffer, iniFile, undefined, callBackProgramDownload, (status) => {
+                // put internal autorun back to default
+                this.downloadAutoRunSet(true);
+                this.downloadAddressSet(VEXCDCDevice.USR_ADDRESS);
+                if (status === true)
+                    resolve(true); // SUCCESS
+                else
+                    resolve(false); // ERROR_DOWNLOAD
+            }, extType);
         });
     }
     /**
@@ -9045,66 +8960,56 @@ class VEXCDCDevice {
    * @param vid the vid for the file
    * @returns the metadata for the specified file
    */
-    getProgramMetadata(name, vid) {
-        return __awaiter(this, void 0, void 0, function* () {
-            // was there any folder at all ?
-            if (name.match('^....\/') !== null) {
-                name = name.slice(5);
+    async getProgramMetadata(name, vid) {
+        // was there any folder at all ?
+        if (name.match('^....\/') !== null) {
+            name = name.slice(5);
+        }
+        this.lastStatus = VEXCDCDevice.STATUS_GOOD;
+        try {
+            await this.writeDataAsync(this.cdc.query1());
+            const metadataResp = await this.writeDataAsync(this.cdc.V5_Cdc2FileMetadataGet(vid, 0, name));
+            log5.debug("metadataResp:", metadataResp);
+            const rep = this.decodeFileGetMetadataReply(metadataResp);
+            if (rep.ack === VexCDC.CDC2_ACK_TYPES.CDC2_ACK) {
+                return rep;
             }
-            this.lastStatus = VEXCDCDevice.STATUS_GOOD;
-            try {
-                yield this.writeDataAsync(this.cdc.query1());
-                const metadataResp = yield this.writeDataAsync(this.cdc.V5_Cdc2FileMetadataGet(vid, 0, name));
-                log5.debug("metadataResp:", metadataResp);
-                const rep = this.decodeFileGetMetadataReply(metadataResp);
-                if (rep.ack === VexCDC.CDC2_ACK_TYPES.CDC2_ACK) {
-                    return rep;
-                }
-                else {
-                    return undefined;
-                }
-            }
-            catch (err) {
-                if (err instanceof ErrorGATT) {
-                    throw err;
-                }
+            else {
                 return undefined;
             }
-        });
+        }
+        catch (err) {
+            if (err instanceof ErrorGATT) {
+                throw err;
+            }
+            return undefined;
+        }
     }
-    checkPythonVm(name, crc, version) {
-        return __awaiter(this, void 0, void 0, function* () {
-            return new Promise((resolve, reject) => __awaiter(this, void 0, void 0, function* () {
-                try {
-                    // unofficial way to get access to serial device
-                    const metadata = yield this.getProgramMetadata(name, VEXCDCDevice.VID.VEXVM);
-                    log5.debug("metadata:", metadata);
-                    if (metadata === undefined) {
-                        // no VM
-                        // serial.reset();
-                        log5.debug("found no VM");
-                        resolve({ exists: false, valid: false });
-                    }
-                    else {
-                        log5.debug("Python VM metadata: ", JSON.stringify(metadata, null, 2));
-                        if (metadata.crc32 === crc && metadata.version === version) {
-                            // Valid VM
-                            log5.debug("found valid VM");
-                            resolve({ exists: true, valid: true });
-                        }
-                        else {
-                            // invalid VM
-                            log5.debug("found invalid VM");
-                            resolve({ exists: true, valid: false });
-                        }
-                    }
-                }
-                catch (e) {
-                    log5.error("error on checking VM ", e);
-                    reject({ err: -1, data: e, msg: "Error on checking VM" });
-                }
-            }));
-        });
+    async checkPythonVm(name, crc, version) {
+        try {
+            // unofficial way to get access to serial device
+            const metadata = await this.getProgramMetadata(name, VEXCDCDevice.VID.VEXVM);
+            log5.debug("metadata:", metadata);
+            if (metadata === undefined) {
+                // no VM
+                // serial.reset();
+                log5.debug("found no VM");
+                return { exists: false, valid: false };
+            }
+            log5.debug("Python VM metadata: ", JSON.stringify(metadata, null, 2));
+            if (metadata.crc32 !== crc || metadata.version !== version) {
+                // invalid VM
+                log5.debug("found invalid VM");
+                return { exists: true, valid: false };
+            }
+            // Valid VM
+            log5.debug("found valid VM");
+            return { exists: true, valid: true };
+        }
+        catch (e) {
+            log5.error("error on checking VM ", e);
+            throw { err: -1, data: e, msg: "Error on checking VM" };
+        }
     }
     getPythonVMResourcePath() {
         if (this.targetIsIQ2) {
@@ -9118,143 +9023,126 @@ class VEXCDCDevice {
         }
         return "";
     }
-    getPythonVMFile() {
-        return __awaiter(this, void 0, void 0, function* () {
-            return new Promise((resolve, reject) => __awaiter(this, void 0, void 0, function* () {
-                try {
-                    const vm_bin_path = this.getPythonVMResourcePath();
-                    const response = yield fetch(vm_bin_path);
-                    const vm_binary = yield response.blob();
-                    if (vm_binary !== undefined) {
-                        var fileReader = new FileReader();
-                        fileReader.readAsArrayBuffer(vm_binary);
-                        // Load the file data
-                        fileReader.onload = (event) => {
-                            if (fileReader.readyState === fileReader.DONE) {
-                                let binfile = new Uint8Array(fileReader.result);
-                                let result = { err: 0, msg: "VM file read successfully!", data: binfile };
-                                resolve(result);
-                            }
-                        };
-                        fileReader.onerror = () => {
-                            let result = { err: -1, msg: "could not read Python VM from Application's /resources", data: "" };
-                            reject(result);
-                        };
-                    }
-                    else {
-                        log5.error("could not find Python VM in Application's /resources");
-                        let result = { err: -1, msg: "could not find Python VM from Application's /resources", data: "" };
-                        reject(result);
-                    }
-                }
-                catch (e) {
-                    log5.error("Error when reading Python VM from  Application's /resources");
-                    let result = { err: -1, msg: "Error when reading Python VM from  Application's /resources", data: "" };
-                    reject(result);
-                }
-            }));
-        });
+    async getPythonVMFile() {
+        try {
+            const vm_bin_path = this.getPythonVMResourcePath();
+            const response = await fetch(vm_bin_path);
+            if (!response.ok) {
+                throw new Error(`Failed to fetch Python VM: ${response.status}`);
+            }
+            const vm_binary = await response.blob();
+            if (vmBinary.size === 0) {
+                throw new Error(`Python VM binary at ${vm_bin_path} is empty`);
+            }
+            const arrayBuffer = await vmBinary.arrayBuffer();
+            let binfile = new Uint8Array(arrayBuffer);
+            let result = { err: 0, msg: "VM file read successfully!", data: binfile };
+            return result;
+        }
+        catch (e) {
+            log5.error("Error when reading Python VM from  Application's /resources");
+            let result = { err: -1, msg: "Error when reading Python VM from  Application's /resources", data: "" };
+            throw result
+        }
     }
     postVMDownloadCleanup() {
         this.downloadTargetSet(VEXCDCDevice.FILE_TARGET_QSPI);
         this.downloadAddressSet(VEXCDCDevice.USR_ADDRESS);
     }
-    checkAndInstallPythonVm(crc, version, progressCallback, force = false) {
-        return __awaiter(this, void 0, void 0, function* () {
-            if (progressCallback) {
-                progressCallback({ "progress": 0, "state": DownloadState.CheckingVM });
-            }
-            // There have been issues where we start to request the VM information,
-            // but we don't get a response back from the brain. When this happens
-            // VEXcode basically gets stuck in a state where it thinks it is downloading
-            // a project. This blocks all future downloads until the app is restarted.
-            // to prevent that, we have added a simple timeout. We use the native
-            // promise.race feature to handle returning either the VM result or the
-            // timeout error to force a failed download.
-            // this is the normal promise used to get the VM data from the brain
-            const VMCheckPromise = this.checkPythonVm("python_vm.bin", crc, version);
-            // this is the timeout promise, used to limit the check to a max of 2 seconds
-            const timeoutPromise = new Promise((resolve, reject) => {
-                setTimeout(() => {
-                    resolve(null);
-                }, 3000); // increased to 3 seconds to allow for slower connections over ble  compared to serial
-            });
-            // now that we have the promises. use whichever one resolves first.
-            const vmCheckResult = yield Promise.race([VMCheckPromise, timeoutPromise]);
-            log5.info("VM available check : ", vmCheckResult, "force:", force);
-            if (vmCheckResult) {
-                if (!vmCheckResult.exists || (vmCheckResult.exists && !vmCheckResult.valid) || force) {
-                    log5.info("downloading Python VM to brain...");
-                    // download progress
-                    const onProgress = (value, total) => {
-                        if (progressCallback) {
-                            progressCallback({ "progress": value, "state": DownloadState.DownloadingVM });
-                        }
-                    };
-                    const vm_content = yield this.getPythonVMFile();
-                    // log5.debug(vm_content);
-                    if (vm_content && vm_content.err == 0 && vm_content.data) {
-                        // save autorun setting
-                        const current_ar_setting = this.downloadAutoRun;
-                        this.downloadAutoRun = 0;
-                        // V5 configuration as default
-                        let vid = VEXCDCDevice.VID.VEXVM;
-                        const exttype = 0x61;
-                        const downloadInfo = this.getPythonVmDownloadInfo();
-                        log5.debug("downloadInfo:", downloadInfo);
-                        if (downloadInfo.address) {
-                            this.downloadAddressSet(downloadInfo.address);
-                        }
-                        if (downloadInfo.target) {
-                            this.downloadTargetSet(downloadInfo.target);
-                        }
-                        if (downloadInfo.vid) {
-                            vid = downloadInfo.vid;
-                        }
-                        if (downloadInfo.version) {
-                            // we set this here, it will be reset back to 1 after download
-                            this.cdc.V5_Cdc2SetFileVersion(downloadInfo.version);
-                        }
-                        else {
-                            this.cdc.V5_Cdc2SetFileVersion(1);
-                        }
-                        log5.debug("vid:", vid);
-                        // TODO: do not try to download the VM over the controller
-                        // send data to brain
-                        try {
-                            const downloadStatus = yield this.downloadDataAsync('python_vm.bin', vm_content.data, onProgress, vid, exttype);
-                            log5.debug("VM downloadStatus:", downloadStatus);
-                            if (!downloadStatus) {
-                                throw false;
-                            }
-                            // restore autorun setting
-                            this.downloadAutoRun = current_ar_setting;
-                            let result = { err: 0, msg: "VM download successful", data: downloadStatus };
-                            log5.info("VM download successful");
-                            this.postVMDownloadCleanup();
-                            return result;
-                        }
-                        catch (err) {
-                            // restore autorun setting
-                            this.downloadAutoRun = current_ar_setting;
-                            let result = { err: -1, msg: "VM download error", data: err };
-                            log5.error("VM download error");
-                            this.postVMDownloadCleanup();
-                            return result;
-                        }
+    async checkAndInstallPythonVm(crc, version, progressCallback, force = false) {
+        if (progressCallback) {
+            progressCallback({ "progress": 0, "state": DownloadState.CheckingVM });
+        }
+        // There have been issues where we start to request the VM information,
+        // but we don't get a response back from the brain. When this happens
+        // VEXcode basically gets stuck in a state where it thinks it is downloading
+        // a project. This blocks all future downloads until the app is restarted.
+        // to prevent that, we have added a simple timeout. We use the native
+        // promise.race feature to handle returning either the VM result or the
+        // timeout error to force a failed download.
+        // this is the normal promise used to get the VM data from the brain
+        const VMCheckPromise = this.checkPythonVm("python_vm.bin", crc, version);
+        // this is the timeout promise, used to limit the check to a max of 2 seconds
+        const timeoutPromise = new Promise((resolve, reject) => {
+            setTimeout(() => {
+                resolve(null);
+            }, 3000); // increased to 3 seconds to allow for slower connections over ble  compared to serial
+        });
+        // now that we have the promises. use whichever one resolves first.
+        const vmCheckResult = await Promise.race([VMCheckPromise, timeoutPromise]);
+        log5.info("VM available check : ", vmCheckResult, "force:", force);
+        if (vmCheckResult) {
+            if (!vmCheckResult.exists || (vmCheckResult.exists && !vmCheckResult.valid) || force) {
+                log5.info("downloading Python VM to brain...");
+                // download progress
+                const onProgress = (value, total) => {
+                    if (progressCallback) {
+                        progressCallback({ "progress": value, "state": DownloadState.DownloadingVM });
                     }
-                }
-                else {
-                    let result = { err: 0, msg: "valid VM already exists on the brain", data: "" };
-                    log5.info("valid VM already exists on the brain");
-                    return result;
+                };
+                const vm_content = await this.getPythonVMFile();
+                // log5.debug(vm_content);
+                if (vm_content && vm_content.err == 0 && vm_content.data) {
+                    // save autorun setting
+                    const current_ar_setting = this.downloadAutoRun;
+                    this.downloadAutoRun = 0;
+                    // V5 configuration as default
+                    let vid = VEXCDCDevice.VID.VEXVM;
+                    const exttype = 0x61;
+                    const downloadInfo = this.getPythonVmDownloadInfo();
+                    log5.debug("downloadInfo:", downloadInfo);
+                    if (downloadInfo.address) {
+                        this.downloadAddressSet(downloadInfo.address);
+                    }
+                    if (downloadInfo.target) {
+                        this.downloadTargetSet(downloadInfo.target);
+                    }
+                    if (downloadInfo.vid) {
+                        vid = downloadInfo.vid;
+                    }
+                    if (downloadInfo.version) {
+                        // we set this here, it will be reset back to 1 after download
+                        this.cdc.V5_Cdc2SetFileVersion(downloadInfo.version);
+                    }
+                    else {
+                        this.cdc.V5_Cdc2SetFileVersion(1);
+                    }
+                    log5.debug("vid:", vid);
+                    // TODO: do not try to download the VM over the controller
+                    // send data to brain
+                    try {
+                        const downloadStatus = await this.downloadDataAsync('python_vm.bin', vm_content.data, onProgress, vid, exttype);
+                        log5.debug("VM downloadStatus:", downloadStatus);
+                        if (!downloadStatus) {
+                            throw false;
+                        }
+                        // restore autorun setting
+                        this.downloadAutoRun = current_ar_setting;
+                        let result = { err: 0, msg: "VM download successful", data: downloadStatus };
+                        log5.info("VM download successful");
+                        this.postVMDownloadCleanup();
+                        return result;
+                    }
+                    catch (err) {
+                        // restore autorun setting
+                        this.downloadAutoRun = current_ar_setting;
+                        let result = { err: -1, msg: "VM download error", data: err };
+                        log5.error("VM download error");
+                        this.postVMDownloadCleanup();
+                        return result;
+                    }
                 }
             }
             else {
-                log5.error("VM available check failed");
-                return { err: -2, msg: "VM check failed", data: null };
+                let result = { err: 0, msg: "valid VM already exists on the brain", data: "" };
+                log5.info("valid VM already exists on the brain");
+                return result;
             }
-        });
+        }
+        else {
+            log5.error("VM available check failed");
+            return { err: -2, msg: "VM check failed", data: null };
+        }
     }
     /**
     * Grab screen layer - debug and test
@@ -9302,33 +9190,29 @@ class VEXCDCDevice {
     * @param progressCallback a callback to inform about how far along the transfer is
     * @returns the raw image data
     */
-    captureScreenData(imageSize, progressCallback) {
+    async captureScreenData(imageSize, progressCallback) {
         // start the image capture
-        return new Promise((resolve, reject) => __awaiter(this, void 0, void 0, function* () {
-            yield this.writeDataAsync(this.cdc.V5_Cdc2ScreenCaptureLayer());
-            this.uploadScreenLayer(-2, (success, data) => {
-                log5.debug("uploadScreenLayer callback:", success);
-                if (success) {
-                    resolve(data);
-                }
-                else {
-                    reject();
-                }
-            }, progressCallback, imageSize);
-        }));
+        await this.writeDataAsync(this.cdc.V5_Cdc2ScreenCaptureLayer());
+        this.uploadScreenLayer(-2, (success, data) => {
+            log5.debug("uploadScreenLayer callback:", success);
+            if (success) {
+                return data;
+            }
+            else {
+                throw undefined;
+            }
+        }, progressCallback, imageSize);
     }
-    SimulateControllerThroughCDC(buttons, lx, ly, rx, ry) {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                yield this.writeDataAsync(this.cdc.V5_Cdc2ControllerSimSet(buttons, lx, ly, rx, ry), { timeout: 1000 });
+    async SimulateControllerThroughCDC(buttons, lx, ly, rx, ry) {
+        try {
+            await this.writeDataAsync(this.cdc.V5_Cdc2ControllerSimSet(buttons, lx, ly, rx, ry), { timeout: 1000 });
+        }
+        catch (error) {
+            if (error instanceof ErrorGATT) {
+                throw error;
             }
-            catch (error) {
-                if (error instanceof ErrorGATT) {
-                    throw error;
-                }
-                log5.error("Error sending controller data through CDC:", error);
-            }
-        });
+            log5.error("Error sending controller data through CDC:", error);
+        }
     }
     buf2hex(buffer) {
         return [...new Uint8Array(buffer)]
@@ -9604,16 +9488,16 @@ class VexCDC {
     //#region IQ Commands
     /**
      * read the brain name
-     * @return {Object} a message
+     * @return {VexCDCMessage} a message
      */
-    brinName() {
+    brainName() {
         var msg = VexCDC.TYPES.BRAIN_NAME_GET;
         var h = this.cdcCommand(msg.cmd);
         return (new VexCDCMessage(h, msg.replyLength));
     }
     /**
      * Create a new play slot command
-     * @return {Object} a message
+     * @return {VexCDCMessage} a message
      */
     playSlot(slot) {
         var msg = VexCDC.TYPES.USER_PLAY;
@@ -9623,7 +9507,7 @@ class VexCDC {
     }
     /**
      * Create a new stop program
-     * @return {Object} a message
+     * @return {VexCDCMessage} a message
      */
     stopProgram() {
         var msg = VexCDC.TYPES.USER_STOP;
@@ -9631,7 +9515,7 @@ class VexCDC {
     }
     /**
      * Create a flash erase command
-     * @return {Object} a message
+     * @return {VexCDCMessage} a message
      */
     flashErase(address, blocks) {
         var msg = VexCDC.TYPES.FLASH_ERASE;
@@ -9647,7 +9531,7 @@ class VexCDC {
     }
     /**
      * Create a flash write command
-     * @return {Object} a message
+     * @return {VexCDCMessage} a message
      */
     flashWrite(address, data) {
         var msg = VexCDC.TYPES.FLASH_WRITE;
@@ -9667,7 +9551,7 @@ class VexCDC {
     }
     /**
      * Create a new download exit command
-     * @return {Object} a message
+     * @return {VexCDCMessage} a message
      */
     downloadExit() {
         var msg = VexCDC.TYPES.USER_EXIT;
@@ -9675,7 +9559,7 @@ class VexCDC {
     }
     /**
      * Create a new styop program
-     * @return {Object} a message
+     * @return {VexCDCMessage} a message
      */
     userProgramSlotsGet() {
         var msg = VexCDC.TYPES.USER_SLOT_GET;
@@ -9683,7 +9567,7 @@ class VexCDC {
     }
     /**
      * Create a program slot set command
-     * @return {Object} a message
+     * @return {VexCDCMessage} a message
      */
     userProgramSlotsSet(slot, address) {
         var msg = VexCDC.TYPES.USER_SLOT_SET;
@@ -9699,7 +9583,7 @@ class VexCDC {
     }
     /**
      * Create a new dfu enable command
-     * @return {Object} a message
+     * @return {VexCDCMessage} a message
      */
     eraseCatalog() {
         var msg = VexCDC.TYPES.EEPROM_ERASE;
@@ -9726,7 +9610,7 @@ class VexCDC {
      * Create a new controller version request command
      * Only send to controller, not V5 brain
      * for debug and test purposes
-     * @return {Object} a message
+     * @return {VexCDCMessage} a message
      */
     V5_Cdc2ControllerCompControl(ctrl, matchtime) {
         const msg = VexCDC.TYPES.CTRL_CDC;
@@ -9740,7 +9624,7 @@ class VexCDC {
     }
     /**
      * Create a new download exit command
-     * @return {Object} a message
+     * @return {VexCDCMessage} a message
      */
     V5_Cdc2FileControl(action, data) {
         const msg = VexCDC.TYPES.USER_CDC;
@@ -9755,7 +9639,7 @@ class VexCDC {
     }
     /**
      * Create a new file initizlize command
-     * @return {Object} a message
+     * @return {VexCDCMessage} a message
      */
     V5_Cdc2FileInitialize(operation, target, vid, options, src, addr, name, exttype = 0) {
         const msg = VexCDC.TYPES.USER_CDC;
@@ -9824,7 +9708,7 @@ class VexCDC {
     }
     /**
      * Create a new download exit command
-     * @return {Object} a message
+     * @return {VexCDCMessage} a message
      */
     V5_Cdc2FileExit(action) {
         const msg = VexCDC.TYPES.USER_CDC;
@@ -9837,7 +9721,7 @@ class VexCDC {
     }
     /**
      * Create a program write command
-     * @return {Object} a message
+     * @return {ObjVexCDCMessageect} a message
      */
     V5_Cdc2FileDataWrite(address, data) {
         const msg = VexCDC.TYPES.USER_CDC;
@@ -9854,7 +9738,7 @@ class VexCDC {
     }
     /**
      * Create a flash read command
-     * @return {Object} a message
+     * @return {VexCDCMessage} a message
      */
     V5_Cdc2FileDataRead(address, bytes) {
         const msg = VexCDC.TYPES.USER_CDC;
@@ -9876,7 +9760,7 @@ class VexCDC {
     }
     /**
      * Create a new user program link command
-     * @return {Object} a message
+     * @return {VexCDCMessage} a message
      */
     V5_Cdc2FileLinkFile(vid, options, name) {
         const msg = VexCDC.TYPES.USER_CDC;
@@ -9890,7 +9774,7 @@ class VexCDC {
     }
     /**
      * Directory count
-     * @return {Object} a message
+     * @return {VexCDCMessage} a message
      */
     V5_Cdc2FileDir(vid, options) {
         const msg = VexCDC.TYPES.USER_CDC;
@@ -9902,7 +9786,7 @@ class VexCDC {
     }
     /**
      * Directory entry
-     * @return {Object} a message
+     * @return {VexCDCMessage} a message
      */
     V5_Cdc2FileDirEntry(index) {
         const msg = VexCDC.TYPES.USER_CDC;
@@ -9914,7 +9798,7 @@ class VexCDC {
     }
     /**
      * Create a new user program load command
-     * @return {Object} a message
+     * @return {VexCDCMessage} a message
      */
     V5_Cdc2FileLoadAndRun(vid, options, name) {
         const msg = VexCDC.TYPES.USER_CDC;
@@ -9928,7 +9812,7 @@ class VexCDC {
     }
     /**
      * Create a new metadata get command
-     * @return {Object} a message
+     * @return {VexCDCMessage} a message
      */
     V5_Cdc2FileMetadataGet(vid, options, name) {
         const msg = VexCDC.TYPES.USER_CDC;
@@ -9942,7 +9826,7 @@ class VexCDC {
     }
     /**
      * Create a new metadata set command
-     * @return {Object} a message
+     * @return {VexCDCMessage} a message
      */
     V5_Cdc2FileMetadataSet(vid, options, addr, type, version, name) {
         const msg = VexCDC.TYPES.USER_CDC;
@@ -9969,7 +9853,7 @@ class VexCDC {
     }
     /**
      * Create a new file erase command
-     * @return {Object} a message
+     * @return {VexCDCMessage} a message
      */
     V5_Cdc2FileErase(vid, options, name) {
         const msg = VexCDC.TYPES.USER_CDC;
@@ -9997,7 +9881,7 @@ class VexCDC {
     }
     /**
      * Create a new v5 system flags status command
-     * @return {Object} a message
+     * @return {VexCDCMessage} a message
      */
     V5_Cdc2FlagsStatus() {
         const msg = VexCDC.TYPES.USER_CDC;
@@ -10007,7 +9891,7 @@ class VexCDC {
     }
     /**
      * Create a new v5 device status command
-     * @return {Object} a message
+     * @return {VexCDCMessage} a message
      */
     V5_Cdc2DeviceStatus() {
         const msg = VexCDC.TYPES.USER_CDC;
@@ -10017,7 +9901,7 @@ class VexCDC {
     }
     /**
      * Create a new v5 system status command
-     * @return {Object} a message
+     * @return {VexCDCMessage} a message
      */
     V5_Cdc2SystemStatus() {
         const msg = VexCDC.TYPES.USER_CDC;
@@ -10027,7 +9911,7 @@ class VexCDC {
     }
     /**
      * Create a new v5 file device table status command
-     * @return a message
+     * @return {VexCDCMessage} a message
      */
     V5_Cdc2FdtStatus() {
         const msg = VexCDC.TYPES.USER_CDC;
@@ -10037,7 +9921,7 @@ class VexCDC {
     }
     /**
      * Create a new v5 log status command
-     * @return a message
+     * @return {VexCDCMessage} a message
      */
     V5_Cdc2LogStatus() {
         const msg = VexCDC.TYPES.USER_CDC;
@@ -10047,7 +9931,7 @@ class VexCDC {
     }
     /**
      * Create a new v5 radio status command
-     * @return a message
+     * @return {VexCDCMessage} a message
      */
     V5_Cdc2RadioStatus(extended) {
         const msg = VexCDC.TYPES.USER_CDC;
@@ -10066,7 +9950,7 @@ class VexCDC {
     }
     /**
      * Create a new v5 log status command
-     * @return a message
+     * @return {VexCDCMessage} a message
      */
     V5_Cdc2LogRead(offset, count) {
         const msg = VexCDC.TYPES.USER_CDC;
@@ -10081,7 +9965,7 @@ class VexCDC {
     /**
      * Create a new v5 user data read/write command
      * @param data the data to send to the user port. this is limited to 224 bytes per message
-     * @return a message
+     * @return {VexCDCMessage} a message
      */
     V5_Cdc2UserRead(data) {
         const msg = VexCDC.TYPES.USER_CDC;
@@ -10105,7 +9989,7 @@ class VexCDC {
     }
     /**
      * Create a new v5 key-value load command
-     * @return {Object} a message
+     * @return {VexCDCMessage} a message
      */
     V5_Cdc2SysKVRead(key) {
         const msg = VexCDC.TYPES.USER_CDC;
@@ -10123,7 +10007,7 @@ class VexCDC {
     }
     /**
      * Create a new v5 key-value save command
-     * @return {Object} a message
+     * @return {VexCDCMessage} a message
      */
     V5_Cdc2SysKVSave(key, value) {
         const msg = VexCDC.TYPES.USER_CDC;
@@ -10144,7 +10028,7 @@ class VexCDC {
     }
     /**
      * Create a new v5 dashboard select command
-     * @return {Object} a message
+     * @return {VexCDCMessage} a message
      */
     V5_Cdc2DashSelect(screen, port) {
         const msg = VexCDC.TYPES.USER_CDC;
@@ -10157,7 +10041,7 @@ class VexCDC {
     }
     /**
      * Create a new factory ping command
-     * @return {Object} a message
+     * @return {VexCDCMessage} a message
      */
     V5_Cdc2FactoryPing(data) {
         const msg = VexCDC.TYPES.USER_CDC;
@@ -10173,7 +10057,7 @@ class VexCDC {
     }
     /**
      * Create a new factory pong command
-     * @return {Object} a message
+     * @return {VexCDCMessage} a message
      */
     V5_Cdc2FactoryPong(len) {
         const msg = VexCDC.TYPES.USER_CDC;
@@ -10186,7 +10070,7 @@ class VexCDC {
     }
     /**
      * Create a new factory enable command
-     * @return {Object} a message
+     * @return {VexCDCMessage} a message
      */
     V5_Cdc2FactoryEnable() {
         const msg = VexCDC.TYPES.USER_CDC;
@@ -10201,7 +10085,7 @@ class VexCDC {
     }
     /**
      * Create a new factory firmware update status command
-     * @return {Object} a message
+     * @return {VexCDCMessage} a message
      */
     V5_Cdc2FactoryStatus() {
         const msg = VexCDC.TYPES.USER_CDC;
@@ -10211,7 +10095,7 @@ class VexCDC {
     }
     /**
      * Create a new factory system reset command
-     * @return {Object} a message
+     * @return {VexCDCMessage} a message
      */
     V5_Cdc2FactoryReset(powerOff) {
         const msg = VexCDC.TYPES.USER_CDC;
@@ -10251,8 +10135,8 @@ class VexCDC {
         return new VexCDCMessage(h, cmd.replyLength);
     }
     /**
-     * Create a new v5 srenn capture command
-     * @return {Object} a message
+     * Create a new v5 screen capture command
+     * @return {VexCDCMessage} a message
      */
     V5_Cdc2ScreenCaptureLayer(layer) {
         const msg = VexCDC.TYPES.USER_CDC;
@@ -10263,7 +10147,15 @@ class VexCDC {
             this.cdc2Command(msg.cmd, cmd.cmd);
         return new VexCDCMessage(h, cmd.replyLength);
     }
-    // simulated controller
+    /**
+     * Create a simulated controller command
+     * @param {*} buttons
+     * @param {*} lx
+     * @param {*} ly
+     * @param {*} rx
+     * @param {*} ry
+     * @return {VexCDCMessage} a message
+     */
     V5_Cdc2ControllerSimSet(buttons, lx, ly, rx, ry) {
         var msg = VexCDC.TYPES.USER_CDC;
         var cmd = VexCDC.ECMDS.CTRL_JOYSTICK_SET;
@@ -11119,48 +11011,45 @@ function convertImageDataJPEG(data) {
  * @returns A promise that resolves to a base64-encoded PNG data URL of the converted image.
  */
 function convertImageDataRGB565(data, width, height, littleEndian) {
-    return __awaiter(this, void 0, void 0, function* () {
-        const dataView = new DataView(data.buffer);
-        const pixel0 = dataView.getInt16(0, littleEndian);
-        const pixel1 = dataView.getInt16(2, littleEndian);
-        const isEmojiLayer = !(pixel0 & 0x0001) && pixel1 & 0x0001;
-        const imageRGBData = new Uint8ClampedArray(4 * width * height);
-        const image = new ImageData(imageRGBData, width, height);
-        for (let sourceYPos = 0; sourceYPos < height; sourceYPos++) {
-            const sourceYPixelOffset = sourceYPos * width;
-            const destinationYPos = isEmojiLayer ? height - sourceYPos - 1 : sourceYPos;
-            const destinationYPixelOffset = destinationYPos * width;
-            for (let sourceXPos = 0; sourceXPos < width; sourceXPos++) {
-                const destinationXPos = isEmojiLayer ? width - sourceXPos - 1 : sourceXPos;
-                const sourcePixel = sourceYPixelOffset + sourceXPos;
-                const destinationPixel = destinationYPixelOffset + destinationXPos;
-                const imageDataOffset = destinationPixel * 4;
-                let pixel = dataView.getUint16(sourcePixel * 2, littleEndian);
-                let r = (pixel & 0xF800) >> 8;
-                let g = (pixel & 0x07E0) >> 3;
-                let b = (pixel & 0x001F) << 3;
-                // extend the lsb for 5 or 6 bit data into lower bits of 8 bit data
-                if (r & 0x08) {
-                    r |= 0x07;
-                }
-                ;
-                if (g & 0x04) {
-                    g |= 0x03;
-                }
-                ;
-                if (b & 0x08) {
-                    b |= 0x07;
-                }
-                ;
-                image.data[imageDataOffset + 0] = r;
-                image.data[imageDataOffset + 1] = g;
-                image.data[imageDataOffset + 2] = b;
-                image.data[imageDataOffset + 3] = 0xFF;
+    const dataView = new DataView(data.buffer);
+    const pixel0 = dataView.getInt16(0, littleEndian);
+    const pixel1 = dataView.getInt16(2, littleEndian);
+    const isEmojiLayer = !(pixel0 & 0x0001) && pixel1 & 0x0001;
+    const imageRGBData = new Uint8ClampedArray(4 * width * height);
+    const image = new ImageData(imageRGBData, width, height);
+    for (let sourceYPos = 0; sourceYPos < height; sourceYPos++) {
+        const sourceYPixelOffset = sourceYPos * width;
+        const destinationYPos = isEmojiLayer ? height - sourceYPos - 1 : sourceYPos;
+        const destinationYPixelOffset = destinationYPos * width;
+        for (let sourceXPos = 0; sourceXPos < width; sourceXPos++) {
+            const destinationXPos = isEmojiLayer ? width - sourceXPos - 1 : sourceXPos;
+            const sourcePixel = sourceYPixelOffset + sourceXPos;
+            const destinationPixel = destinationYPixelOffset + destinationXPos;
+            const imageDataOffset = destinationPixel * 4;
+            let pixel = dataView.getUint16(sourcePixel * 2, littleEndian);
+            let r = (pixel & 0xF800) >> 8;
+            let g = (pixel & 0x07E0) >> 3;
+            let b = (pixel & 0x001F) << 3;
+            // extend the lsb for 5 or 6 bit data into lower bits of 8 bit data
+            if (r & 0x08) {
+                r |= 0x07;
             }
+            ;
+            if (g & 0x04) {
+                g |= 0x03;
+            }
+            ;
+            if (b & 0x08) {
+                b |= 0x07;
+            }
+            ;
+            image.data[imageDataOffset + 0] = r;
+            image.data[imageDataOffset + 1] = g;
+            image.data[imageDataOffset + 2] = b;
+            image.data[imageDataOffset + 3] = 0xFF;
         }
-        return drawAndConvertImage(image);
-        ;
-    });
+    }
+    return drawAndConvertImage(image);
 }
 /**
  * Converts image data from RGB888 format to a base64-encoded PNG data URL.
@@ -11173,53 +11062,51 @@ function convertImageDataRGB565(data, width, height, littleEndian) {
  * @returns A promise that resolves to a base64-encoded PNG data URL of the converted image.
  */
 function convertImageDataRGB888(data, width, height, stride, littleEndian) {
-    return __awaiter(this, void 0, void 0, function* () {
-        let offset = 0;
-        stride = stride !== undefined ? stride : width;
-        const imageRGBData = new Uint8ClampedArray(4 * stride * height);
-        const image = new ImageData(imageRGBData, stride, height);
-        // copy and reorder layer 1
-        for (let h = 0; h < height; h++) {
-            for (let w = 0; w < stride; w++) {
-                const b = data[offset + 0];
-                const g = data[offset + 1];
-                const r = data[offset + 2];
-                imageRGBData[offset + 0] = r;
-                imageRGBData[offset + 1] = g;
-                imageRGBData[offset + 2] = b;
-                imageRGBData[offset + 3] = 255;
-                offset += 4;
-            }
+    let offset = 0;
+    stride = stride !== undefined ? stride : width;
+    const imageRGBData = new Uint8ClampedArray(4 * stride * height);
+    const image = new ImageData(imageRGBData, stride, height);
+    // copy and reorder layer 1
+    for (let h = 0; h < height; h++) {
+        for (let w = 0; w < stride; w++) {
+            const b = data[offset + 0];
+            const g = data[offset + 1];
+            const r = data[offset + 2];
+            imageRGBData[offset + 0] = r;
+            imageRGBData[offset + 1] = g;
+            imageRGBData[offset + 2] = b;
+            imageRGBData[offset + 3] = 255;
+            offset += 4;
         }
-        const canvas = document.createElement("canvas");
-        const ctx = canvas.getContext("2d");
-        // set the canvas size to the image size
-        canvas.width = image.width;
-        canvas.height = image.height;
-        // TODO: review this.
-        // it looks like there is almost no difference between the two branches. but it also seems
-        // like something is missing regarding the width vs stride
-        if (stride === width) {
-            var _osb = document.createElement("canvas");
-            _osb.width = image.width;
-            _osb.height = image.height;
-            // render our ImageData on this canvas
-            _osb.getContext('2d').putImageData(image, 0, 0);
-            // Now we can scale our image, by drawing our second canvas
-            ctx.drawImage(_osb, 0, 0, image.width, image.height, 0, 0, canvas.width, canvas.height);
-        }
-        else {
-            var _osb = document.createElement("canvas");
-            _osb.width = image.width;
-            _osb.height = image.height;
-            // render our ImageData on this canvas
-            _osb.getContext('2d').putImageData(image, 0, 0);
-            // Now we can scale our image, by drawing our second canvas
-            ctx.drawImage(_osb, 0, 0, width, image.height, 0, 0, canvas.width, canvas.height);
-        }
-        // create a data url of the image
-        return canvas.toDataURL("image/png");
-    });
+    }
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    // set the canvas size to the image size
+    canvas.width = image.width;
+    canvas.height = image.height;
+    // TODO: review this.
+    // it looks like there is almost no difference between the two branches. but it also seems
+    // like something is missing regarding the width vs stride
+    if (stride === width) {
+        var _osb = document.createElement("canvas");
+        _osb.width = image.width;
+        _osb.height = image.height;
+        // render our ImageData on this canvas
+        _osb.getContext('2d').putImageData(image, 0, 0);
+        // Now we can scale our image, by drawing our second canvas
+        ctx.drawImage(_osb, 0, 0, image.width, image.height, 0, 0, canvas.width, canvas.height);
+    }
+    else {
+        var _osb = document.createElement("canvas");
+        _osb.width = image.width;
+        _osb.height = image.height;
+        // render our ImageData on this canvas
+        _osb.getContext('2d').putImageData(image, 0, 0);
+        // Now we can scale our image, by drawing our second canvas
+        ctx.drawImage(_osb, 0, 0, width, image.height, 0, 0, canvas.width, canvas.height);
+    }
+    // create a data url of the image
+    return canvas.toDataURL("image/png");
 }
 /**
  * Converts YUV image data to an RGB image and returns it as a base64 encoded string.
@@ -11231,43 +11118,40 @@ function convertImageDataRGB888(data, width, height, stride, littleEndian) {
  * @returns A promise that resolves to a base64-encoded PNG data URL of the converted image.
  */
 function convertImageDataYUV(data, width, height, littleEndian) {
-    return __awaiter(this, void 0, void 0, function* () {
-        const dataView = new DataView(data.buffer);
-        const imageRGBData = new Uint8ClampedArray(4 * width * height);
-        const image = new ImageData(imageRGBData, width, height);
-        let offsetImage = 0;
-        let offsetSource = 0;
-        for (let h = 0; h < image.height; h++) {
-            for (let w = 0; w < image.width; w += 2) {
-                const pixel1 = dataView.getUint16(offsetSource, littleEndian);
-                offsetSource += 2;
-                const pixel2 = dataView.getUint16(offsetSource, littleEndian);
-                const y1 = (pixel1 & 0xFF00) >> 8;
-                const y2 = (pixel2 & 0xFF00) >> 8;
-                const cr = (pixel1 & 0x00FF) - 128;
-                const cb = (pixel2 & 0x00FF) - 128;
-                // ITU-R BT601 matrix
-                const g1 = (y1 * 1.000 + cb * -0.3437 + cr * -0.7142);
-                const b1 = (y1 * 1.000 + cb * 1.7722 + cr * 0.0000);
-                const r1 = (y1 * 1.000 + cb * 0.0000 + cr * 1.4017);
-                const g2 = (y2 * 1.000 + cb * -0.3437 + cr * -0.7142);
-                const b2 = (y2 * 1.000 + cb * 1.7722 + cr * 0.0000);
-                const r2 = (y2 * 1.000 + cb * 0.0000 + cr * 1.4017);
-                image.data[offsetImage + 0] = r1;
-                image.data[offsetImage + 1] = g1;
-                image.data[offsetImage + 2] = b1;
-                image.data[offsetImage + 3] = 0xFF;
-                image.data[offsetImage + 4] = r2;
-                image.data[offsetImage + 5] = g2;
-                image.data[offsetImage + 6] = b2;
-                image.data[offsetImage + 7] = 0xFF;
-                offsetImage += 8;
-                offsetSource += 2;
-            }
+    const dataView = new DataView(data.buffer);
+    const imageRGBData = new Uint8ClampedArray(4 * width * height);
+    const image = new ImageData(imageRGBData, width, height);
+    let offsetImage = 0;
+    let offsetSource = 0;
+    for (let h = 0; h < image.height; h++) {
+        for (let w = 0; w < image.width; w += 2) {
+            const pixel1 = dataView.getUint16(offsetSource, littleEndian);
+            offsetSource += 2;
+            const pixel2 = dataView.getUint16(offsetSource, littleEndian);
+            const y1 = (pixel1 & 0xFF00) >> 8;
+            const y2 = (pixel2 & 0xFF00) >> 8;
+            const cr = (pixel1 & 0x00FF) - 128;
+            const cb = (pixel2 & 0x00FF) - 128;
+            // ITU-R BT601 matrix
+            const g1 = (y1 * 1.000 + cb * -0.3437 + cr * -0.7142);
+            const b1 = (y1 * 1.000 + cb * 1.7722 + cr * 0.0000);
+            const r1 = (y1 * 1.000 + cb * 0.0000 + cr * 1.4017);
+            const g2 = (y2 * 1.000 + cb * -0.3437 + cr * -0.7142);
+            const b2 = (y2 * 1.000 + cb * 1.7722 + cr * 0.0000);
+            const r2 = (y2 * 1.000 + cb * 0.0000 + cr * 1.4017);
+            image.data[offsetImage + 0] = r1;
+            image.data[offsetImage + 1] = g1;
+            image.data[offsetImage + 2] = b1;
+            image.data[offsetImage + 3] = 0xFF;
+            image.data[offsetImage + 4] = r2;
+            image.data[offsetImage + 5] = g2;
+            image.data[offsetImage + 6] = b2;
+            image.data[offsetImage + 7] = 0xFF;
+            offsetImage += 8;
+            offsetSource += 2;
         }
-        return drawAndConvertImage(image);
-        ;
-    });
+    }
+    return drawAndConvertImage(image);
 }
 /**
  * Converts monochrome image data to an RGBA image and returns it as a base64 string.
@@ -11278,29 +11162,26 @@ function convertImageDataYUV(data, width, height, littleEndian) {
  * @returns A promise that resolves to a base64-encoded PNG data URL of the converted image.
  */
 function convertImageDataMono(data, width, height) {
-    return __awaiter(this, void 0, void 0, function* () {
-        const dataView = new DataView(data.buffer);
-        const imageRGBData = new Uint8ClampedArray(4 * width * height);
-        const image = new ImageData(imageRGBData, width, height);
-        let offsetImage = 0;
-        let offsetSource = 0;
-        for (let h = 0; h < image.height; h++) {
-            for (let w = 0; w < image.width; w++) {
-                const pixel = dataView.getUint8(offsetSource);
-                const r = pixel;
-                const g = pixel;
-                const b = pixel;
-                image.data[offsetImage + 0] = r;
-                image.data[offsetImage + 1] = g;
-                image.data[offsetImage + 2] = b;
-                image.data[offsetImage + 3] = 0xFF;
-                offsetImage += 4;
-                offsetSource += 1;
-            }
+    const dataView = new DataView(data.buffer);
+    const imageRGBData = new Uint8ClampedArray(4 * width * height);
+    const image = new ImageData(imageRGBData, width, height);
+    let offsetImage = 0;
+    let offsetSource = 0;
+    for (let h = 0; h < image.height; h++) {
+        for (let w = 0; w < image.width; w++) {
+            const pixel = dataView.getUint8(offsetSource);
+            const r = pixel;
+            const g = pixel;
+            const b = pixel;
+            image.data[offsetImage + 0] = r;
+            image.data[offsetImage + 1] = g;
+            image.data[offsetImage + 2] = b;
+            image.data[offsetImage + 3] = 0xFF;
+            offsetImage += 4;
+            offsetSource += 1;
         }
-        return drawAndConvertImage(image);
-        ;
-    });
+    }
+    return drawAndConvertImage(image);
 }
 
 
@@ -11319,6 +11200,10 @@ historyLogger9.setLevel(LoggerLevels.DEBUG);
 historyLogger9.setMaxLines(2000);
 
 const VEXBLEDeviceManagerVersion = "1.0.22";
+/**
+ * @global
+ * @type {VEXBLEDeviceManager}
+ */
 let bleDeviceManager;
 function init(target) {
     // initialize Device manager
@@ -11337,47 +11222,35 @@ function init(target) {
 function getDeviceManagerVersion() {
     return VEXBLEDeviceManagerVersion;
 }
-function getMachineBleHardwareInfo(platform) {
-    return __awaiter(this, void 0, void 0, function* () {
-        return yield bleDeviceManager.getMachineBleHardwareInfo(platform);
-    });
+async function getMachineBleHardwareInfo(platform) {
+    return await bleDeviceManager.getMachineBleHardwareInfo(platform);
 }
-function updateFirmware(firmwareType = VEXFirmwareType.Release) {
-    return __awaiter(this, void 0, void 0, function* () {
-        if (bleDeviceManager.productType != VEXProductTypes.VEXAIM) {
-            yield bleDeviceManager.updateFirmware(firmwareType);
-        }
-        else {
-            log9.warn("Firmware update not supported for VEXAIM");
-        }
-    });
+async function updateFirmware(firmwareType = VEXFirmwareType.Release) {
+    if (bleDeviceManager.productType != VEXProductTypes.VEXAIM) {
+        await bleDeviceManager.updateFirmware(firmwareType);
+    }
+    else {
+        log9.warn("Firmware update not supported for VEXAIM");
+    }
 }
-function setFirmwareToBeta(firmwareType = VEXFirmwareType.Release) {
-    return __awaiter(this, void 0, void 0, function* () {
-        yield bleDeviceManager.setFirmwareToBeta(firmwareType);
-    });
+async function setFirmwareToBeta(firmwareType = VEXFirmwareType.Release) {
+    await bleDeviceManager.setFirmwareToBeta(firmwareType);
 }
 /**
  *  Returns the version of the latest firmware available on the cloud
  *  If server not reachable, returns the local version packed with the application
  *  return 0.0.0.b0 on failure to get both.
  */
-function getLatestFirmwareVersion(firmwareType = VEXFirmwareType.Release) {
-    return __awaiter(this, void 0, void 0, function* () {
-        const version = yield bleDeviceManager.getLatestFirmwareVersion(firmwareType);
-        return version;
-    });
+async function getLatestFirmwareVersion(firmwareType = VEXFirmwareType.Release) {
+    return await bleDeviceManager.getLatestFirmwareVersion(firmwareType);
 }
 /**
  *  Returns the version of the latest firmware available on the cloud
  *  If server not reachable, returns the local version packed with the application
  *  return 0.0.0.b0 on failure to get both.
  */
-function getLatestBootloaderVersion(firmwareType = VEXFirmwareType.Release) {
-    return __awaiter(this, void 0, void 0, function* () {
-        const version = yield bleDeviceManager.getLatestBootLoaderVersion();
-        return version;
-    });
+async function getLatestBootloaderVersion(firmwareType = VEXFirmwareType.Release) {
+    return await bleDeviceManager.getLatestBootLoaderVersion();
 }
 /**
  * Returns the version of firmware on the device
@@ -11394,25 +11267,19 @@ function getDeviceBootloaderVersion() {
 function CanUpdateBootloader() {
     return bleDeviceManager.CanUpdateBootloader();
 }
-function bootload() {
-    return __awaiter(this, void 0, void 0, function* () {
-        if (bleDeviceManager.productType == VEXProductTypes.OneStickController) {
-            yield bleDeviceManager.bootloadOneStick();
-        }
-        else {
-            yield bleDeviceManager.bootload();
-        }
-    });
+async function bootload() {
+    if (bleDeviceManager.productType == VEXProductTypes.OneStickController) {
+        await bleDeviceManager.bootloadOneStick();
+    }
+    else {
+        await bleDeviceManager.bootload();
+    }
 }
-function powerOff() {
-    return __awaiter(this, void 0, void 0, function* () {
-        yield bleDeviceManager.powerOff();
-    });
+async function powerOff() {
+    await bleDeviceManager.powerOff();
 }
-function reboot() {
-    return __awaiter(this, void 0, void 0, function* () {
-        yield bleDeviceManager.reboot();
-    });
+async function reboot() {
+    await bleDeviceManager.reboot();
 }
 function getConnectionState() {
     return bleDeviceManager.getConnectionState();
@@ -11479,74 +11346,54 @@ function enableAdminService(enable) {
 function enableAIMRemoteControlService(enable) {
     bleDeviceManager.enableAIMRemoteControlService(enable);
 }
-function scanAndConnect() {
-    return __awaiter(this, void 0, void 0, function* () {
-        yield bleDeviceManager.scanAndConnect();
-    });
+async function scanAndConnect() {
+    await bleDeviceManager.scanAndConnect();
 }
-function stopProgram() {
-    return __awaiter(this, void 0, void 0, function* () {
-        //yield bleDeviceManager.SendProgramStateCommand(VEXProgramState.Stop);
-        yield bleDeviceManager.runProgram('null', VEXCDCDevice.VID.USER);
-    });
+async function stopProgram() {
+    //await bleDeviceManager.SendProgramStateCommand(VEXProgramState.Stop);
+    await bleDeviceManager.runProgram('null', VEXCDCDevice.VID.USER);
 }
-function disconnect() {
-    return __awaiter(this, void 0, void 0, function* () {
-        yield bleDeviceManager.disconnect();
-    });
+async function disconnect() {
+    await bleDeviceManager.disconnect();
 }
-function sendCommand(cmd, uuid) {
-    return __awaiter(this, void 0, void 0, function* () {
-        if (bleDeviceManager.productType == VEXProductTypes.VEXAIM) {
-            yield bleDeviceManager.executeSingleCommandAIM(cmd, uuid);
-        }
-        else {
-            yield bleDeviceManager.executeSingleCommand(cmd);
-        }
-    });
+async function sendCommand(cmd, uuid) {
+    if (bleDeviceManager.productType == VEXProductTypes.VEXAIM) {
+        await bleDeviceManager.executeSingleCommandAIM(cmd, uuid);
+    }
+    else {
+        await bleDeviceManager.executeSingleCommand(cmd);
+    }
 }
-function sendCommandMultiple(cmds) {
-    return __awaiter(this, void 0, void 0, function* () {
-        yield bleDeviceManager.executeMutlipleCommands(cmds);
-    });
+async function sendCommandMultiple(cmds) {
+    await bleDeviceManager.executeMutlipleCommands(cmds);
 }
-function sendRobotConfigPreset(preset) {
-    return __awaiter(this, void 0, void 0, function* () {
-        yield bleDeviceManager.setRobotConfigPreset(preset);
-    });
+async function sendRobotConfigPreset(preset) {
+    await bleDeviceManager.setRobotConfigPreset(preset);
 }
-function LocateRobot(durationSec = 2) {
-    return __awaiter(this, void 0, void 0, function* () {
-        yield bleDeviceManager.LocateRobot(durationSec);
-    });
+async function LocateRobot(durationSec = 2) {
+    await bleDeviceManager.LocateRobot(durationSec);
 }
-function getCommandNameFromID(command) {
+async function getCommandNameFromID(command) {
     return bleDeviceManager.getCommandNameFromID(command);
 }
 /**
  * This will will clear all events for the passed in port
  * @param portID Port to clear events on.
  */
-function clearPortEvents(portID) {
-    return __awaiter(this, void 0, void 0, function* () {
-        yield bleDeviceManager.clearPortEvents(portID);
-    });
+async function clearPortEvents(portID) {
+    await bleDeviceManager.clearPortEvents(portID);
 }
-function requestRobotConfig() {
-    return __awaiter(this, void 0, void 0, function* () {
-        yield bleDeviceManager.requestRobotConfig();
-    });
+async function requestRobotConfig() {
+    await bleDeviceManager.requestRobotConfig();
 }
-function setRobotName(newName) {
-    return __awaiter(this, void 0, void 0, function* () {
-        if (bleDeviceManager.productType == VEXProductTypes.VEXAIM || bleDeviceManager.productType == VEXProductTypes.VEXIQ2Brain) {
-            let nameFromBrain = yield bleDeviceManager.SetBrainNameAdmin(newName);
-            log9.debug("Name from Brain: ", nameFromBrain);
-        }
-        else {
-            yield bleDeviceManager.SetRobotName(newName);
-        }
-    });
+async function setRobotName(newName) {
+    if (bleDeviceManager.productType == VEXProductTypes.VEXAIM || bleDeviceManager.productType == VEXProductTypes.VEXIQ2Brain) {
+        let nameFromBrain = await bleDeviceManager.SetBrainNameAdmin(newName);
+        log9.debug("Name from Brain: ", nameFromBrain);
+    }
+    else {
+        await bleDeviceManager.SetRobotName(newName);
+    }
 }
 function getDeviceInfo() {
     return bleDeviceManager.getDeviceInfo();
@@ -11554,10 +11401,8 @@ function getDeviceInfo() {
 function showAllBLEDevices(enable) {
     bleDeviceManager.showAllBLEDevices(enable);
 }
-function setPortConfig(portNum, devType, flags = VEXPortConfigFlags.FLAG_ENABLED, iLimitPct = 100, iLimitMax = 500) {
-    return __awaiter(this, void 0, void 0, function* () {
-        yield bleDeviceManager.setPortConfig(portNum, devType, flags, iLimitPct, iLimitMax);
-    });
+async function setPortConfig(portNum, devType, flags = VEXPortConfigFlags.FLAG_ENABLED, iLimitPct = 100, iLimitMax = 500) {
+    await bleDeviceManager.setPortConfig(portNum, devType, flags, iLimitPct, iLimitMax);
 }
 /**
     * Sends control values to robot
@@ -11568,10 +11413,8 @@ function setPortConfig(portNum, devType, flags = VEXPortConfigFlags.FLAG_ENABLED
     * @param Buttons1 First 8 button bit map
     * @param Buttons2 Second 8 button bit map
     */
-function setControlControlValues(leftX = 127, leftY = 127, rightX = 127, rightY = 127, Buttons1 = 0, Buttons2 = 0) {
-    return __awaiter(this, void 0, void 0, function* () {
-        yield bleDeviceManager.setControlControlValues(leftX, leftY, rightX, rightY, Buttons1, Buttons2);
-    });
+async function setControlControlValues(leftX = 127, leftY = 127, rightX = 127, rightY = 127, Buttons1 = 0, Buttons2 = 0) {
+    await bleDeviceManager.setControlControlValues(leftX, leftY, rightX, rightY, Buttons1, Buttons2);
 }
 /**
  * Sends a command to set the stick type for control values
@@ -11579,22 +11422,19 @@ function setControlControlValues(leftX = 127, leftY = 127, rightX = 127, rightY 
  * @param driveSensi
  * @param turnSensi
  */
-function setControlDriveStickType(newType, driveSensi = 50, turnSensi = 25) {
-    return __awaiter(this, void 0, void 0, function* () {
-        yield bleDeviceManager.setControlDriveStickType(newType, driveSensi, turnSensi);
-    });
+async function setControlDriveStickType(newType, driveSensi = 50, turnSensi = 25) {
+    await bleDeviceManager.setControlDriveStickType(newType, driveSensi, turnSensi);
 }
 /**
-* Convieniance method for setting up button commands. This method will attempt to parse the string for the command and pass the 4 byte value to the base class to send to the robot.
+* Convieniance method for setting up button commands.
+* This method will attempt to parse the string for the command and pass the 4 byte value to the base class to send to the robot.
 * @param command Command string
 * @param buttonID Button ID
 * @param pressed Buttons state that this command is connected to
 */
-function controllerAddButtonCommand(command, buttonID, pressed) {
-    return __awaiter(this, void 0, void 0, function* () {
-        let state = yield bleDeviceManager.controllerAddButtonCommand(command, buttonID, pressed);
-        return state;
-    });
+async function controllerAddButtonCommand(command, buttonID, pressed) {
+    let state = await bleDeviceManager.controllerAddButtonCommand(command, buttonID, pressed);
+    return state;
 }
 //functions below are needed only if VEXcode let library to run the controller update loop
 /**
@@ -11636,32 +11476,24 @@ function controllerClearValues() {
  * Sends command to save the current controll settings for button commands and robot config
  * When the the robot reboots it will remember these settings once commanded into the "Control" config preset
  */
-function saveControlSettings() {
-    return __awaiter(this, void 0, void 0, function* () {
-        yield bleDeviceManager.saveControlSettings();
-    });
+async function saveControlSettings() {
+    await bleDeviceManager.saveControlSettings();
 }
 /**
  * This will request the devices current connection interval. Value will be returned in the ack data callback.
  */
-function RequestConnectionInterval() {
-    return __awaiter(this, void 0, void 0, function* () {
-        yield bleDeviceManager.RequestConnectionInterval();
-    });
+async function RequestConnectionInterval() {
+    await bleDeviceManager.RequestConnectionInterval();
 }
-function SetSensorMode(newMode) {
-    return __awaiter(this, void 0, void 0, function* () {
-        yield bleDeviceManager.SetSensorMode(newMode);
-    });
+async function SetSensorMode(newMode) {
+    await bleDeviceManager.SetSensorMode(newMode);
 }
 /**
  * Send a command to read the current user setting from the 123 Robot
  * Status is returned in the VEXBLEBrowser.UserSettingsStatus event callback
  */
-function Get123RobotUserSettings() {
-    return __awaiter(this, void 0, void 0, function* () {
-        yield bleDeviceManager.Get123RobotUserSettings();
-    });
+async function Get123RobotUserSettings() {
+    await bleDeviceManager.Get123RobotUserSettings();
 }
 /**
  * Send new user settings to 123 robot device. Status is returned in the VEXBLEBrowser.UserSettingsStatus event callback
@@ -11669,55 +11501,39 @@ function Get123RobotUserSettings() {
  * @param soundVolume
  * @param persist If true these settings will be saved in flash else these settings will only persist until reboot. (In th case of the encoder this means batteries are removed.)
  */
-function Set123RobotUserSettings(idleTimeout, soundVolume, persist) {
-    return __awaiter(this, void 0, void 0, function* () {
-        yield bleDeviceManager.Set123RobotUserSettings(idleTimeout, soundVolume, persist);
-    });
+async function Set123RobotUserSettings(idleTimeout, soundVolume, persist) {
+    await bleDeviceManager.Set123RobotUserSettings(idleTimeout, soundVolume, persist);
 }
 /**
  *
  */
-function IsFWUpdateSupported() {
-    return __awaiter(this, void 0, void 0, function* () {
-        let supported = yield bleDeviceManager.IsFWUpdateSupported();
-        return supported;
-    });
+async function IsFWUpdateSupported() {
+    return await bleDeviceManager.IsFWUpdateSupported();
 }
 /**
  * Writes raw data through admin characteristics
  * @param data byte array or CDC Message with data
  */
-function WriteDataAsync(data, options) {
-    return __awaiter(this, void 0, void 0, function* () {
-        return bleDeviceManager.WriteDataAsync(data);
-    });
+async function WriteDataAsync(data, options) {
+    return await bleDeviceManager.WriteDataAsync(data);
 }
 /**
  * gets the Brain Name though Admin characteristics
  */
-function GetBrainNameAdmin() {
-    return __awaiter(this, void 0, void 0, function* () {
-        let name = yield bleDeviceManager.GetBrainNameAdmin();
-        return name;
-    });
+async function GetBrainNameAdmin() {
+    return await bleDeviceManager.GetBrainNameAdmin();
 }
 /**
  * gets the Brain System Version through Admin characteristics
  */
-function BrainGetSystemVersionAdmin() {
-    return __awaiter(this, void 0, void 0, function* () {
-        let verison = yield bleDeviceManager.BrainGetSystemVersion();
-        return verison;
-    });
+async function BrainGetSystemVersionAdmin() {
+    return await bleDeviceManager.BrainGetSystemVersion();
 }
 /**
  * gets the Brain System Version through Admin characteristics
  */
-function BrainGetSystemStatusAdmin() {
-    return __awaiter(this, void 0, void 0, function* () {
-        let status = yield bleDeviceManager.BrainGetSystemStatus();
-        return status;
-    });
+async function BrainGetSystemStatusAdmin() {
+    return await bleDeviceManager.BrainGetSystemStatus();
 }
 /**
  * gets the Brain Device ID through Admin characteristics
@@ -11725,27 +11541,20 @@ function BrainGetSystemStatusAdmin() {
  * if required this function can be called to get the device ID ONLY after LockCode is sent and connected to device fully
  * Because: all the CDC2 commands based querries are blocked in firmware until the device is unlocked
  */
-function BrainGetDeviceID() {
-    return __awaiter(this, void 0, void 0, function* () {
-        let verison = yield bleDeviceManager.BrainGetSystemStatus();
-        return verison.deviceID;
-    });
+async function BrainGetDeviceID() {
+    return await bleDeviceManager.BrainGetSystemStatus();
 }
 /**
  * Sends the lock code to the device
  * @param code
  * @returns true if the device is unlocked
  */
-function SendLockCode(code) {
-    return __awaiter(this, void 0, void 0, function* () {
-        let unlocked = yield bleDeviceManager.SendLockCode(code);
-        return unlocked;
-    });
+async function SendLockCode(code) {
+    let unlocked = await bleDeviceManager.SendLockCode(code);
+    return unlocked;
 }
-function ShowLockCodeOnBrain(show) {
-    return __awaiter(this, void 0, void 0, function* () {
-        yield bleDeviceManager.ShowLockCodeOnBrain(show);
-    });
+async function ShowLockCodeOnBrain(show) {
+    await bleDeviceManager.ShowLockCodeOnBrain(show);
 }
 /**
  * Runs the project at the specified slot.
@@ -11753,19 +11562,15 @@ function ShowLockCodeOnBrain(show) {
  * @param {number} slot - The slot number of the project to run. 0 indexed.
  * @returns {Promise<boolean>} A promise that resolves to a boolean indicating the success of the operation.
  */
-function Play(slot) {
-    return __awaiter(this, void 0, void 0, function* () {
-        return bleDeviceManager.Play(slot);
-    });
+async function Play(slot) {
+    return await bleDeviceManager.Play(slot);
 }
 /**
  * Stops the currently running project.
  * @returns {Promise<boolean>} A promise that resolves to a boolean indicating the success of the operation.
  */
-function Stop() {
-    return __awaiter(this, void 0, void 0, function* () {
-        return bleDeviceManager.Stop();
-    });
+async function Stop() {
+    return await bleDeviceManager.Stop();
 }
 /**
  *  Downloads the program to the device
@@ -11777,15 +11582,11 @@ function Stop() {
  * @param ide  "Blocks" or "Python"
  * @returns
  */
-function downloadProgram(slot, projectName, language, data, progressCallback, ide) {
-    return __awaiter(this, void 0, void 0, function* () {
-        return bleDeviceManager.downloadProgram(slot, projectName, language, data, progressCallback, ide);
-    });
+async function downloadProgram(slot, projectName, language, data, progressCallback, ide) {
+    return await bleDeviceManager.downloadProgram(slot, projectName, language, data, progressCallback, ide);
 }
-function checkAndInstallPythonVm(crc, version, progressCallback, force = false) {
-    return __awaiter(this, void 0, void 0, function* () {
-        return bleDeviceManager.checkAndInstallPythonVm(crc, version, progressCallback, force);
-    });
+async function checkAndInstallPythonVm(crc, version, progressCallback, force = false) {
+    return await bleDeviceManager.checkAndInstallPythonVm(crc, version, progressCallback, force);
 }
 /***
 * Downloads the image file to the AIM
@@ -11794,20 +11595,16 @@ function checkAndInstallPythonVm(crc, version, progressCallback, force = false) 
 * @param progress the progress callback
 * @returns true if the download was successful
 */
-function downloadImageFileAIM(filename, data, progress) {
-    return __awaiter(this, void 0, void 0, function* () {
-        return bleDeviceManager.downloadImageFileAIM(filename, data, progress);
-    });
+async function downloadImageFileAIM(filename, data, progress) {
+    return await bleDeviceManager.downloadImageFileAIM(filename, data, progress);
 }
 /**
 * Deletes the image file from the AIM
 * @param filename to be deleted from AIM
 * @returns
 */
-function deleteImageFileAIM(filename) {
-    return __awaiter(this, void 0, void 0, function* () {
-        return bleDeviceManager.deleteImageFileAIM(filename);
-    });
+async function deleteImageFileAIM(filename) {
+    return await bleDeviceManager.deleteImageFileAIM(filename);
 }
 /**
  * Reads the image file from the AIM
@@ -11815,48 +11612,38 @@ function deleteImageFileAIM(filename) {
  * @param progressCallback to get the progress of the read
  * @returns the image data or null if the read failed
  */
-function readImageFileAIM(filename, progressCallback) {
-    return __awaiter(this, void 0, void 0, function* () {
-        return bleDeviceManager.readImageFileAIM(filename, progressCallback);
-    });
+async function readImageFileAIM(filename, progressCallback) {
+    return await bleDeviceManager.readImageFileAIM(filename, progressCallback);
 }
 /**
  * Sends the data to the user port
  * @param data string to be sent to the user port
  * @returns
  */
-function sendDataUserPort(data) {
-    return __awaiter(this, void 0, void 0, function* () {
-        return yield bleDeviceManager.WriteDataUser(data);
-    });
+async function sendDataUserPort(data) {
+    return await bleDeviceManager.WriteDataUser(data);
 }
 /**
  * Lists all the image files on the AIM
  * @returns list of image file meta data
  */
-function listImageFiles() {
-    return __awaiter(this, void 0, void 0, function* () {
-        return bleDeviceManager.listImageFilesAIM();
-    });
+async function listImageFiles() {
+    return await bleDeviceManager.listImageFilesAIM();
 }
 /**
  * Lists all the sound files on the AIM
  * @returns list of sound files meta data
  */
-function listSoundFiles() {
-    return __awaiter(this, void 0, void 0, function* () {
-        return bleDeviceManager.listSoundFilesAIM();
-    });
+async function listSoundFiles() {
+    return await bleDeviceManager.listSoundFilesAIM();
 }
 /**
 * Deletes the sound file from the AIM
 * @param filename to be deleted from AIM
 * @returns
 */
-function deleteSoundFileAIM(filename) {
-    return __awaiter(this, void 0, void 0, function* () {
-        return bleDeviceManager.deleteSoundFileAIM(filename);
-    });
+async function deleteSoundFileAIM(filename) {
+    return await bleDeviceManager.deleteSoundFileAIM(filename);
 }
 /**
 * Reads the sound file from the AIM
@@ -11864,10 +11651,8 @@ function deleteSoundFileAIM(filename) {
 * @param progressCallback to get the progress of the read
 * @returns the sound data or null if the read failed
 */
-function readSoundFileAIM(filename, progressCallback) {
-    return __awaiter(this, void 0, void 0, function* () {
-        return bleDeviceManager.readSoundFileAIM(filename, progressCallback);
-    });
+async function readSoundFileAIM(filename, progressCallback) {
+    return await bleDeviceManager.readSoundFileAIM(filename, progressCallback);
 }
 /***
 * Downloads the sound file to the AIM
@@ -11876,30 +11661,22 @@ function readSoundFileAIM(filename, progressCallback) {
 * @param progress the progress callback
 * @returns true if the download was successful
 */
-function downloadSoundFileAIM(filename, data, progress) {
-    return __awaiter(this, void 0, void 0, function* () {
-        return bleDeviceManager.downloadSoundFileAIM(filename, data, progress);
-    });
+async function downloadSoundFileAIM(filename, data, progress) {
+    return await bleDeviceManager.downloadSoundFileAIM(filename, data, progress);
 }
 /**
      * capture the screen from the AIM
      * @param progressCallback
      * @returns image in RGB565 format as dataUrl string
      */
-function captureBrainScreenAIM(progressCallback) {
-    return __awaiter(this, void 0, void 0, function* () {
-        return bleDeviceManager.captureBrainScreenAIM(progressCallback);
-    });
+async function captureBrainScreenAIM(progressCallback) {
+    return await bleDeviceManager.captureBrainScreenAIM(progressCallback);
 }
-function runSystemProgram(slot) {
-    return __awaiter(this, void 0, void 0, function* () {
-        return yield bleDeviceManager.runSystemProgram(slot);
-    });
+async function runSystemProgram(slot) {
+    return await bleDeviceManager.runSystemProgram(slot);
 }
-function isProjectRunning() {
-    return __awaiter(this, void 0, void 0, function* () {
-        return yield bleDeviceManager.isProjectRunning();
-    });
+async function isProjectRunning() {
+    return await bleDeviceManager.isProjectRunning();
 }
 /**
  * Simulates the controller by sending buttons and axis through Admin CDC service to Brain.
@@ -11911,10 +11688,8 @@ function isProjectRunning() {
  * Supports only IQ2 and AIM.
  * @returns
  */
-function SimulateControllerThroughCDC(state) {
-    return __awaiter(this, void 0, void 0, function* () {
-        return yield bleDeviceManager.SimulateControllerThroughCDC(state);
-    });
+async function SimulateControllerThroughCDC(state) {
+    return await bleDeviceManager.SimulateControllerThroughCDC(state);
 }
 function enableALLLogger() {
     getLogger("vex-web-ble-device-manager").enableAll();
