@@ -262,6 +262,7 @@
 </div>
 
 <script type="module">
+let masterHandle = null;
 let programFileHandle = null;
 let directoryHandle = null;
 
@@ -270,7 +271,15 @@ function get_extension(file) {
     return nameParts[nameParts.length - 1];
 }
 
-function get_file_name(file) {
+async function get_file_name(file_handle) {
+  let file;
+  if (file_handle.kind == 'directory') {
+    //const settings_file =
+    return file_handle.name;
+  } else {
+    file = await file_handle.getFile();
+  }
+
     const nameParts = file.name.split('.');
     return nameParts[0];
 }
@@ -287,6 +296,7 @@ document.getElementById("selectProgram").addEventListener('click', async () => {
     });
     const file = await programFileHandle.getFile();
     let file_text = await file.text();
+    masterHandle = programFileHandle;
 });
 
 document.getElementById("selectProjectDir").addEventListener('click', async () => {
@@ -297,6 +307,7 @@ document.getElementById("selectProjectDir").addEventListener('click', async () =
     programFileHandle = await srcDirectoryHandle.getFileHandle("main.py");
     const file = await programFileHandle.getFile();
     let file_text = await file.text();
+    masterHandle = directoryHandle;
 });
 
 document.getElementById("download").addEventListener('click', async () => {
@@ -322,7 +333,8 @@ document.getElementById("download").addEventListener('click', async () => {
         let programData = encoder.encode(programText);
         const slotNum = parseInt(slotPicker.value, 10);
         const slotIndex = slotNum - 1;
-        await downloadProgram(slotIndex, get_file_name(file), "python", programData, (data) => { progress = data.progress; }, "Python");
+        console.log(await get_file_name(masterHandle));
+        await downloadProgram(slotIndex, await get_file_name(masterHandle), "python", programData, (data) => { progress = data.progress; }, "Python");
     } else {
         alert("No program selected. Please select a file first.");
         return;
