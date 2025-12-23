@@ -320,8 +320,9 @@ document.getElementById("download").addEventListener('click', async () => {
         }
         let encoder = new TextEncoder();
         let programData = encoder.encode(programText);
-        const slotNum = parseInt(slotPicker.value, 10) - 1;
-        await downloadProgram(slotNum, get_file_name(file), "python", programData, (data) => { progress = data.progress; }, "Python");
+        const slotNum = parseInt(slotPicker.value, 10);
+        const slotIndex = slotNum - 1;
+        await downloadProgram(slotIndex, get_file_name(file), "python", programData, (data) => { progress = data.progress; }, "Python");
     } else {
         alert("No program selected. Please select a file first.");
         return;
@@ -765,8 +766,9 @@ async function connect() {
 }
 
 async function run_program() {
-    const slotNum = parseInt(slotPicker.value, 10) - 1;
-    if (Play(slotNum)) {
+    const slotNum = parseInt(slotPicker.value, 10);
+    const slotIndex = slotNum - 1;
+    if (await Play(slotIndex)) {
         log(`Run command sent to Slot ${slotNum}`);
     } else {
         log(`Cannot start empty Slot ${slotNum}`);
@@ -777,7 +779,7 @@ disable_buttons();
 init("IQ2");
 connectBtn.addEventListener('click', connect);
 startBtn.addEventListener('click', run_program);
-stopBtn.addEventListener('click', stopProgram);
+stopBtn.addEventListener('click', Stop);
 clearBtn.addEventListener('click', clearBoth);
 renameBtn.addEventListener('click', renameBrain);
 EventSystem.on("VEXBLEBrowser.EnterLockCode", EnterLockCode_callback);

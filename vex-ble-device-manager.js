@@ -11350,8 +11350,7 @@ async function scanAndConnect() {
     await bleDeviceManager.scanAndConnect();
 }
 async function stopProgram() {
-    //await bleDeviceManager.SendProgramStateCommand(VEXProgramState.Stop);
-    await bleDeviceManager.runProgram('null', VEXCDCDevice.VID.USER);
+    await bleDeviceManager.SendProgramStateCommand(VEXProgramState.Stop);
 }
 async function disconnect() {
     await bleDeviceManager.disconnect();
