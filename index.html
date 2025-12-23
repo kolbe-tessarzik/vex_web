@@ -127,6 +127,17 @@
     cursor: pointer;
   }
 
+  button .icon {
+    fill: black;           /* whatever color you want for enabled */
+    transition: fill 0.2s;
+  }
+
+  /* Icon color when button is disabled */
+  button:disabled .icon {
+    fill: rgb(188, 188, 188);            /* grayed-out color */
+  }
+
+
   .btn-cancel {
     background: #5b6168;
     color: white;
@@ -213,13 +224,24 @@
       <option value="7">Slot 7</option>
       <option value="8">Slot 8</option>
     </select>
-    <button id="startBtn">Start</button>
-    <button id="stopBtn">Stop</button>
+    <button id="startBtn">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 19" width="24" height="24">
+          <path class="icon" d="M1 1 L15 9.5 L1 18 Z"></path>
+      </svg>
+    </button>
+    <button id="stopBtn">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 15 15" width="24" height="24">
+          <rect class="icon" width="15" height="15" rx="2"></rect>
+      </svg>
+    </button>
     <button id="clearBtn">Clear</button>
     <button id="selectProgram">Select Program</button>
     <button id="selectProjectDir">Select Project Dir</button>
     <input type="file" id="fileInput" style="display:none" accept=".py,.iqpython" />
-    <button id="download">Download</button>
+    <button id="download">
+      <img src="download.svg" alt="Download" width="24" height="24">
+    </button>
+
 
   </div>
 </div>
@@ -884,7 +906,6 @@ function createConfig(graph_dict) {
     config.data.datasets.push(dataset);
   });
 
-  console.log(`Final config: ${config}`);
 }
 createConfig([
   {
