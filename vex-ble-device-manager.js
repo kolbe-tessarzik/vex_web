@@ -9013,7 +9013,7 @@ class VEXCDCDevice {
     }
     getPythonVMResourcePath() {
         if (this.targetIsIQ2) {
-            return "resources/iq2/vm/python_vm.bin";
+            return "python_vm.bin";
         }
         else if (this.targetIsEXP) {
             return "resources/exp/vm/python_vm.bin";
