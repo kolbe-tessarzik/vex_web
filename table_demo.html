@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Picker Table with Unique Selection</title>
+    <style>
+        table {
+            border-collapse: collapse;
+            width: 800px;
+            font-family: sans-serif;
+        }
+
+        th,
+        td {
+            padding: 8px 10px;
+            border-bottom: 1px solid #ddd;
+            text-align: left;
+        }
+
+        th {
+            background: #f4f4f4;
+            font-weight: 600;
+        }
+
+        /* select element removed — using custom Dropdown. Keep legacy rule for other selects */
+        select {
+            width: 100%;
+        }
+
+        /* align remove button and picker inline */
+        .name-cell {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .name-cell .custom-select {
+            flex: 1 1 auto;
+            width: 100%;
+        }
+
+        .empty {
+            color: #aaa;
+        }
+
+        .remove-btn,
+        .action-btn {
+            border-radius: 4px;
+            margin-right: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        /* small inline remove button with red minus on light gray */
+        .remove-btn {
+            background: #f5f5f5;
+            color: #e55353; /* red minus text */
+            border: 1px solid #ddd;
+            padding: 0 8px;
+            height: 40px;
+            line-height: 40px;
+            font-size: 16px;
+            min-width: 40px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .remove-btn:hover {
+            background: #e9e9e9;
+        }
+
+        /* action buttons: square, light gray background, icon and label colored via --icon-color */
+        .action-btn {
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            color: #333; /* fallback for icon/text color */
+            width: 40px;
+            height: 40px;
+            padding: 3px 4px;
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 2px;
+            border-radius: 6px;
+            box-sizing: border-box;
+        }
+
+        .action-btn.run { --icon-color: #4CAF50; }
+        .action-btn.stop { --icon-color: #e55353; }
+        .action-btn.download { --icon-color: #2d7ef7; }
+
+        .action-btn svg { width: 12px; height: 12px; display: block; color: var(--icon-color); }
+        .action-btn.download svg { width: 20px; height: 20px; transform: translateY(1px); }
+        .action-btn .btn-label { font-size: 9px; font-weight: 700; text-transform: uppercase; line-height: 1; color: var(--icon-color); text-align:center }
+        .action-btn .btn-label span { display:block }
+
+        /* svg icons inside action buttons: inherit button color and size */
+        .action-btn svg { width: 16px; height: 16px; display: inline-block; vertical-align: middle; }
+
+        /* Dropdown select styling to match control heights */
+        .custom-select .select-selected { height: 40px; padding: 0 8px; display:flex; align-items:center; }
+        .custom-select .large-text { font-size: 14px; font-weight: 600 }
+        .custom-select .small-text { font-size: 11px; color: #777 }
+
+        .remove-btn.hidden,
+        .action-btn.hidden {
+            display: none;
+        }
+
+        /* make inline picker the same height as the action/remove buttons for visual alignment */
+        .name-cell select { height: 40px; }
+    </style>
+</head>
+
+<body>
+
+    <table id="pickerTable">
+        <thead></thead>
+        <tbody></tbody>
+    </table>
+
+    <script src="dropdown.js"></script>
+
+    <script>
+        const DATA = [
+            { name: "XDrive", slot: 1, path: "Code/VEX/XDrive" },
+            { name: "R3BeatThee", slot: 1, path: "Code/VEX/R3BeatThee" },
+            { name: "NewerBotCode", slot: 2, path: "Code/VEX/NewerBotCode" },
+            { name: "WidthSensor", slot: 6, path: "Code/VEX/WidthSensor" },
+            { name: "BLETest", slot: 1, path: "Code/vex_web/BLETest" },
+            { name: "NewTest", slot: 1, path: "Code/vex_web/NewTest.iqpython" }
+        ];
+
+        const tbody = document.querySelector("#pickerTable tbody");
+        // Set to true to start with all DATA items pre-selected for layout preview
+        const INIT_WITH_ALL = true;
+
+        function getSelectedNames() {
+            return Array.from(tbody.querySelectorAll('.custom-select'))
+                .map(c => c._dropdown && c._dropdown.selectedValue)
+                .filter(v => v);
+        }
+        // Build dropdown options for a row, keeping currentSelected available
+        function getDropdownOptions(currentSelectedName = "") {
+            const selectedNames = getSelectedNames();
+            return DATA.filter(d => (d.name === currentSelectedName) || !selectedNames.includes(d.name))
+                .map(d => ({ text: d.name, path: d.path, value: d.name }));
+        }
+
+        function refreshPickers() {
+            Array.from(tbody.querySelectorAll('.custom-select')).forEach(div => {
+                const dropdown = div._dropdown;
+                if (!dropdown) return;
+                const current = dropdown.selectedValue;
+                const opts = getDropdownOptions(current);
+                dropdown.update_options(opts);
+                if (current) dropdown.setValue(current);
+            });
+            ensureTrailingEmptyRow();
+        }
+
+        function getAvailableOptions() {
+            const selected = getSelectedNames();
+            return DATA.filter(d => !selected.includes(d.name));
+        }
+
+        function ensureTrailingEmptyRow() {
+            const available = getAvailableOptions();
+
+            if (available.length > 0) {
+                // if no empty picker exists, append one
+                const hasEmpty = Array.from(tbody.querySelectorAll('.custom-select')).some(c => !c._dropdown || !c._dropdown.selectedValue);
+                if (!hasEmpty) tbody.appendChild(createRow(true));
+            } else {
+                // remove trailing empty picker rows when none are available
+                Array.from(tbody.querySelectorAll("tr")).forEach(row => {
+                    const div = row.querySelector('.custom-select');
+                    if (div && (!div._dropdown || !div._dropdown.selectedValue)) row.remove();
+                });
+            }
+        }
+
+        function createRow(isLast = false, initialSelectedName = "") {
+            const tr = document.createElement("tr");
+            const rowTd = document.createElement("td");
+            rowTd.classList.add("name-cell");
+            const slotTd = document.createElement("td");
+
+            slotTd.classList.add("empty");
+
+            // Buttons
+            const removeBtn = document.createElement("button");
+            removeBtn.textContent = "−";
+            removeBtn.className = "remove-btn";
+            // hide remove button for empty rows initially
+            removeBtn.classList.add("hidden");
+            rowTd.appendChild(removeBtn);
+            // create dropdown container and instance
+            const ddContainer = document.createElement('div');
+            ddContainer.classList.add('custom-select');
+            rowTd.appendChild(ddContainer);
+            const dropdown = new Dropdown(getDropdownOptions(initialSelectedName), ddContainer);
+            // keep reference for refresh logic
+            ddContainer._dropdown = dropdown;
+
+            const playBtn = document.createElement("button");
+            playBtn.className = "action-btn run hidden";
+            playBtn.setAttribute('aria-label','Run');
+            playBtn.innerHTML = `
+                <svg viewBox="0 0 16 19" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M277.71,30.091a.8.8,0,0,1,0,1.433l-7.206,4.5-6.674,4.17c-.675.422-1.679.048-1.679-.626V22.3c0-.779,1.16-1.211,1.941-.723l6.411,4.006Z" transform="translate(-262.152 -21.375)" fill="currentColor"/></svg>
+                <span class='btn-label'>RUN</span>
+            `;
+
+            const stopBtn = document.createElement("button");
+            stopBtn.className = "action-btn stop hidden";
+            stopBtn.setAttribute('aria-label','Stop');
+            stopBtn.innerHTML = `
+                <svg viewBox="0 0 19 19" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><rect width="19" height="19" rx="2" fill="currentColor"/></svg>
+                <span class='btn-label'>STOP</span>
+            `;
+
+            const downloadBtn = document.createElement("button");
+            downloadBtn.className = "action-btn download hidden";
+            downloadBtn.setAttribute('aria-label','Download');
+            downloadBtn.innerHTML = `
+                <svg viewBox="0 0 24 20" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M-1793,3924a2,2,0,0,1-2-2v-5a2,2,0,0,1,2-2h3.482l5.235,6.406.206.2a1.652,1.652,0,0,0,1.066.39,1.667,1.667,0,0,0,1.278-.6l5.231-6.4h3.5a2,2,0,0,1,2,2v5a2,2,0,0,1-2,2Zm16-3h3v-3h-3Zm-15,0h3v-3h-3Zm8.494-1.235-6.358-7.783a.606.606,0,0,1,.505-.982H-1787v-5a2,2,0,0,1,2-2h4a2,2,0,0,1,2,2v5h2.359a.606.606,0,0,1,.5.981l-6.361,7.784a.652.652,0,0,1-.505.235A.649.649,0,0,1-1783.506,3919.765Z" transform="translate(1795 -3904)" fill="currentColor"/></svg>
+                <span class='btn-label'>LOAD</span>
+            `;
+
+            rowTd.append(playBtn, stopBtn, downloadBtn);
+
+            tr.append(rowTd);
+
+            // If an initial selection is provided, set the row state accordingly (no change event)
+            if (initialSelectedName) {
+                const item = DATA.find(d => d.name === initialSelectedName);
+                if (item) {
+                    dropdown.setValue(initialSelectedName);
+                    dropdown.selectedValue = initialSelectedName;
+                    slotTd.textContent = item.slot;
+                    slotTd.classList.remove("empty");
+                    // show buttons for a filled row
+                    removeBtn.classList.remove("hidden");
+                    playBtn.classList.remove("hidden");
+                    stopBtn.classList.remove("hidden");
+                    downloadBtn.classList.remove("hidden");
+                }
+            }
+
+            // Listen for selection events from the Dropdown instance
+            ddContainer.addEventListener('dropdown-select', (e) => {
+                const val = e.detail.value;
+                if (!val) return;
+                const item = DATA.find(d => d.name === val);
+                slotTd.textContent = item.slot;
+                slotTd.classList.remove('empty');
+
+                // Show buttons
+                removeBtn.classList.remove('hidden');
+                playBtn.classList.remove('hidden');
+                stopBtn.classList.remove('hidden');
+                downloadBtn.classList.remove('hidden');
+
+                // If this is the last row and there are still available options, add a new empty row
+                if (tr === tbody.lastElementChild) {
+                    const available = getAvailableOptions();
+                    if (available.length > 0) tbody.appendChild(createRow(true));
+                }
+
+                refreshPickers();
+            });
+
+            removeBtn.addEventListener("click", () => {
+                tr.remove();
+                refreshPickers();
+                ensureTrailingEmptyRow();
+            });
+
+            playBtn.addEventListener("click", () => alert(`Run ${ddContainer._dropdown && ddContainer._dropdown.selectedValue}`));
+            stopBtn.addEventListener("click", () => alert(`Stop ${ddContainer._dropdown && ddContainer._dropdown.selectedValue}`));
+            downloadBtn.addEventListener("click", () => alert(`Download ${ddContainer._dropdown && ddContainer._dropdown.selectedValue}`));
+
+            return tr;
+        }
+
+        function initSelectAll() {
+            tbody.innerHTML = "";
+            DATA.forEach(d => {
+                tbody.appendChild(createRow(false, d.name));
+            });
+            // ensure pickers are consistent and no trailing empty row is left
+            refreshPickers();
+            ensureTrailingEmptyRow();
+        }
+
+        // initial state: either start pre-filled for preview, or leave one empty picker
+        if (INIT_WITH_ALL) initSelectAll();
+        else ensureTrailingEmptyRow();
+    </script>
+
+</body>
+
+</html>
