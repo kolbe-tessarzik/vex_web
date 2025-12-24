@@ -501,9 +501,10 @@
     })();
 
     function downloadCallback(prog_dict) {
-      console.log(`Downloading: ${prog_dict.progress * 100}%`)
+      const current_time = Date.now();
+      console.log(`Downloading:`, prog_dict);
       BleProgressUI.show();
-      BleProgressUI.setInProgress("Downloading");
+      BleProgressUI.setInProgress("Downloading" + " .".repeat(Math.floor((current_time % 2000)*4/2000)));
       BleProgressUI.setPercent(Math.floor(prog_dict.progress * 100));
       if (prog_dict.progress == 1) {
         BleProgressUI.setSuccess("Download Complete!");
