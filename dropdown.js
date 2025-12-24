@@ -38,6 +38,11 @@
             background-color: #aaa;
         }
 
+        .list-el:focus, .list-el.focused {
+            background-color: #ddd;
+            outline: none;
+        }
+
         /* hide the item that matches the current selection while the list is open so the
            selected value isn't visible twice (once in the selection box and once in the list) */
           /* when the list is open we hide the selection box content so the selected value
@@ -87,11 +92,21 @@
                 // create selection box
                 this.selectSelected = document.createElement('div');
                 this.selectSelected.classList.add('select-selected');
+                // make it focusable and accessible
+                this.selectSelected.tabIndex = 0;
+                this.selectSelected.setAttribute('role', 'combobox');
+                this.selectSelected.setAttribute('aria-haspopup', 'listbox');
+                this.selectSelected.setAttribute('aria-expanded', 'false');
                 this.selectSelected.innerHTML = `Select an option<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 8" width="12" height="8" class="my-svg" aria-hidden="true"><path d="M1 1l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>`;
 
                 // create selection options
                 this.selectItems    = document.createElement('div');
                 this.selectItems.classList.add('select-items', 'select-hide');
+                this.selectItems.setAttribute('role', 'listbox');
+                // unique id for aria-controls
+                Dropdown._idCounter = (Dropdown._idCounter || 0) + 1;
+                this.selectItems.id = `dropdown-list-${Dropdown._idCounter}`;
+                this.selectSelected.setAttribute('aria-controls', this.selectItems.id);
 
                 // inject them into the outer div
                 this.container.append(this.selectSelected, this.selectItems);
@@ -108,21 +123,104 @@
                         this.selectItems.classList.remove('shadowed');
                         // make sure the selection box is visible again when the list is closed
                         this.selectSelected.classList.remove('overlay-hidden');
+                        this.selectSelected.setAttribute('aria-expanded', 'false');
+                        // remove any focused state from items
+                        this._clearFocusedItem();
                     }
                 });
 
-                this.selectSelected.addEventListener('click', () => {
-                    const isHidden = this.selectItems.classList.toggle('select-hide');
-                    this.selectItems.classList.toggle('shadowed');
-                    // when opening, visually hide the selection box so its content isn't
-                    // duplicated (the list still contains the selected item). When closing,
-                    // restore the selection box visibility.
-                    if (!isHidden) {
-                        this.selectSelected.classList.add('overlay-hidden');
-                    } else {
-                        this.selectSelected.classList.remove('overlay-hidden');
+                // click opens/closes
+                this.selectSelected.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    this.toggle();
+                });
+
+                // keyboard interactions on the selection box
+                this.selectSelected.addEventListener('keydown', (e) => {
+                    switch (e.key) {
+                        case 'Enter':
+                        case ' ': // Space
+                            e.preventDefault();
+                            this.toggle(true);
+                            break;
+                        case 'ArrowDown':
+                            e.preventDefault();
+                            this.open();
+                            this._focusFirstItem();
+                            break;
+                        case 'ArrowUp':
+                            e.preventDefault();
+                            this.open();
+                            this._focusLastItem();
+                            break;
+                        case 'Escape':
+                            this.close();
+                            break;
                     }
                 });
+            }
+
+            // Open dropdown and update aria + visuals
+            open() {
+                this.selectItems.classList.remove('select-hide');
+                this.selectItems.classList.add('shadowed');
+                this.selectSelected.classList.add('overlay-hidden');
+                this.selectSelected.setAttribute('aria-expanded', 'true');
+            }
+
+            // Close dropdown and update aria + visuals
+            close() {
+                this.selectItems.classList.add('select-hide');
+                this.selectItems.classList.remove('shadowed');
+                this.selectSelected.classList.remove('overlay-hidden');
+                this.selectSelected.setAttribute('aria-expanded', 'false');
+                this._clearFocusedItem();
+                this.selectSelected.focus();
+            }
+
+            // Toggle dropdown open/closed. If viaKeyboard true, focus moves appropriately
+            toggle(viaKeyboard = false) {
+                const isHidden = this.selectItems.classList.toggle('select-hide');
+                this.selectItems.classList.toggle('shadowed');
+                if (!isHidden) {
+                    this.selectSelected.classList.add('overlay-hidden');
+                    this.selectSelected.setAttribute('aria-expanded', 'true');
+                    if (viaKeyboard) this._focusFirstItem();
+                } else {
+                    this.selectSelected.classList.remove('overlay-hidden');
+                    this.selectSelected.setAttribute('aria-expanded', 'false');
+                    this._clearFocusedItem();
+                }
+            }
+
+            _focusFirstItem() {
+                const first = this.selectItems.querySelector('.list-el');
+                if (first) this._focusItemElement(first);
+            }
+
+            _focusLastItem() {
+                const items = this.selectItems.querySelectorAll('.list-el');
+                const last = items[items.length - 1];
+                if (last) this._focusItemElement(last);
+            }
+
+            _focusItemElement(el) {
+                this._clearFocusedItem();
+                el.tabIndex = 0;
+                el.classList.add('focused');
+                el.focus();
+                // keep track of focused index
+                const items = Array.from(this.selectItems.querySelectorAll('.list-el'));
+                this._focusedIndex = items.indexOf(el);
+            }
+
+            _clearFocusedItem() {
+                const focused = this.selectItems.querySelector('.list-el.focused');
+                if (focused) {
+                    focused.classList.remove('focused');
+                    focused.tabIndex = -1;
+                }
+                this._focusedIndex = -1;
             }
 
             _styleDropdown() {
@@ -143,6 +241,10 @@
                     item.classList.add("list-el");
                     item.dataset.value = optionData.value || optionData.text;
                     item.title = optionData.path;
+                    // accessibility attributes
+                    item.tabIndex = -1;
+                    item.setAttribute('role', 'option');
+                    item.setAttribute('aria-selected', 'false');
                     const largeText = document.createElement('span');
                     largeText.classList.add('large-text');
                     largeText.textContent = optionData.text + "\n";
@@ -152,21 +254,88 @@
                     smallText.textContent = optionData.path;
 
                     // Use an arrow function so `this` refers to the Dropdown instance
-                    item.addEventListener('click', () => {
+                    const doSelect = () => {
+                        // update displayed selection
                         this.selectSelected.innerHTML = item.innerHTML;
                         this.selectSelected.innerHTML += `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 8" width="12" height="8" class="my-svg" aria-hidden="true"><path d="M1 1l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+                        // visually close
                         this.selectItems.classList.add('select-hide');
                         this.selectItems.classList.remove('shadowed');
+                        this.selectSelected.classList.remove('overlay-hidden');
+                        this.selectSelected.setAttribute('aria-expanded', 'false');
+                        // clear focused state
+                        this._clearFocusedItem();
                         // set selected value
                         this.selectedValue = optionData.value || optionData.text;
+                        // mark aria-selected
+                        this.selectItems.querySelectorAll('.list-el').forEach(el => el.setAttribute('aria-selected', 'false'));
+                        item.setAttribute('aria-selected', 'true');
                         // dispatch an event so external code can react to selection
                         this.container.dispatchEvent(new CustomEvent('dropdown-select', { detail: { value: this.selectedValue, text: optionData.text, path: optionData.path } }));
+                        this.selectSelected.focus();
+                    };
+
+                    item.addEventListener('click', doSelect);
+
+                    // add keyboard support on each item
+                    item.addEventListener('keydown', (e) => {
+                        switch (e.key) {
+                            case 'ArrowDown':
+                                e.preventDefault();
+                                this._moveFocus(1);
+                                break;
+                            case 'ArrowUp':
+                                e.preventDefault();
+                                this._moveFocus(-1);
+                                break;
+                            case 'Home':
+                                e.preventDefault();
+                                this._focusFirstItem();
+                                break;
+                            case 'End':
+                                e.preventDefault();
+                                this._focusLastItem();
+                                break;
+                            case 'Enter':
+                            case ' ': // Space
+                                e.preventDefault();
+                                doSelect();
+                                break;
+                            case 'Escape':
+                                e.preventDefault();
+                                this.close();
+                                break;
+                        }
+                    });
+
+                    // mouseover should highlight for mouse users
+                    item.addEventListener('mouseenter', () => {
+                        this._focusItemElement(item);
                     });
                     item.appendChild(largeText);
                     item.appendChild(smallText);
                     this.selectItems.appendChild(item);
+                    // reflect current selection if present
+                    if ((optionData.value || optionData.text) === this.selectedValue) {
+                        item.setAttribute('aria-selected', 'true');
+                        this.selectSelected.innerHTML = item.innerHTML + `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 8" width="12" height="8" class="my-svg" aria-hidden="true"><path d="M1 1l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+                    }
                     console.log(this.selectItems.innerHTML);
                 });
+                // reset focused index
+                this._focusedIndex = -1;
+            }
+
+            _moveFocus(delta) {
+                const items = Array.from(this.selectItems.querySelectorAll('.list-el'));
+                if (!items.length) return;
+                let idx = this._focusedIndex;
+                if (idx < 0) {
+                    idx = delta > 0 ? 0 : items.length - 1;
+                } else {
+                    idx = (idx + delta + items.length) % items.length;
+                }
+                this._focusItemElement(items[idx]);
             }
 
             setValue(value) {
