@@ -549,14 +549,22 @@
     });
 
     document.getElementById("selectProjectDir").addEventListener('click', async () => {
+      const dirBtn = document.getElementById("selectProjectDir");
       directoryHandle = await window.showDirectoryPicker({
         startIn: directoryHandle || "documents",
       });
+      dirBtn.disabled = true;
+      dirBtn.textContent = "Reading files . . ."
       let srcDirectoryHandle = await directoryHandle.getDirectoryHandle("src");
       programFileHandle = await srcDirectoryHandle.getFileHandle("main.py");
       const file = await programFileHandle.getFile();
       let file_text = await file.text();
       masterHandle = directoryHandle;
+      dirBtn.textContent = "Files read sucessfully!";
+      setTimeout(() => {
+        dirBtn.textContent = "Select Project Dir";
+        dirBtn.disabled = false;
+      }, 500);
     });
 
     document.getElementById("download").addEventListener('click', async () => {
