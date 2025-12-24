@@ -172,6 +172,56 @@
             display: none;
         }
 
+        /* placeholder state: reserve layout space but keep the control visually absent
+           and non-interactive until its inner content slides in */
+        .control-placeholder {
+            background: transparent !important;
+            border-color: transparent !important;
+            pointer-events: none;
+        }
+
+        /* animate-in helpers for controls */
+        :root { --ctrl-size: 40px; --ctrl-gap: 8px; }
+        .action-btn, .slot-btn, .remove-btn {
+            will-change: width, margin;
+            box-sizing: border-box;
+            width: var(--ctrl-size);
+            min-width: var(--ctrl-size);
+            padding: 3px 4px;
+            margin-right: var(--ctrl-gap);
+            transition: width 260ms cubic-bezier(.2,.9,.2,1), margin 200ms ease;
+            overflow: hidden;
+        }
+
+        /* collapsed state: zero width so the control appears to slide in and push the select */
+        .collapsed-control {
+            width: 0 !important;
+            min-width: 0 !important;
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+            margin-right: 0 !important;
+        }
+
+        /* inner sliding content so buttons appear to slide in from the left
+           while their width expands and pushes the select element. No fade. */
+        .control-inner {
+            display: inline-block;
+            transform: translateX(-100%);
+            transition: transform 260ms cubic-bezier(.2,.9,.2,1);
+            width: 100%;
+            box-sizing: border-box;
+            will-change: transform;
+        }
+        .control-inner.in {
+            transform: translateX(0);
+        }
+
+        /* ensure the select visually adjusts smoothly as buttons expand */
+        .custom-select {
+            transition: transform 220ms ease, max-width 260ms cubic-bezier(.2,.9,.2,1);
+            min-width: 0;
+        }
+
         .slot-btn {
             /* Make the control visually just the SVG (no button chrome) */
             background: transparent;
@@ -229,6 +279,10 @@
             stroke-width: 3;
             stroke-linecap: round;
         }
+
+        /* helper styles for animated row removal */
+        .row-collapse-inner { display: block; }
+        .removing-row td { border: none; padding: 0; }
 
         /* make inline picker the same height as the action/remove buttons for visual alignment */
         .name-cell select {
@@ -297,12 +351,101 @@
                 const hasEmpty = Array.from(tbody.querySelectorAll('.custom-select')).some(c => !c._dropdown || !c._dropdown.selectedValue);
                 if (!hasEmpty) tbody.appendChild(createRow(true));
             } else {
-                // remove trailing empty picker rows when none are available
+                // remove trailing empty picker rows when none are available (animate removal)
                 Array.from(tbody.querySelectorAll("tr")).forEach(row => {
                     const div = row.querySelector('.custom-select');
-                    if (div && (!div._dropdown || !div._dropdown.selectedValue)) row.remove();
+                    if (div && (!div._dropdown || !div._dropdown.selectedValue)) {
+                        animateRemoveRow(row, () => { /* no-op after animated remove */ });
+                    }
                 });
             }
+        }
+
+        // Animate a table row collapsing away so the lines above/below come together.
+        // This implementation replaces the row with a single-cell wrapper and
+        // animates an inner div's height and opacity for smoother behavior.
+        // Calls `onComplete` after the row is removed from DOM.
+        function animateRemoveRow(row, onComplete) {
+            if (!row || row._isRemoving) return;
+            row._isRemoving = true;
+            const parent = row.parentNode;
+            if (!parent) return;
+
+            const rect = row.getBoundingClientRect();
+            const initialHeight = rect.height;
+            const colCount = row.children.length || 1;
+
+            // Create wrapper row with a single td spanning all columns
+            const wrapper = document.createElement('tr');
+            wrapper.className = 'removing-row';
+            const td = document.createElement('td');
+            td.colSpan = colCount;
+            td.style.padding = '0';
+
+            const inner = document.createElement('div');
+            inner.className = 'row-collapse-inner';
+            // preserve the row's inner HTML inside the collapsible div
+            inner.innerHTML = row.innerHTML;
+            // set styles to make the collapse smooth
+            inner.style.overflow = 'hidden';
+            inner.style.boxSizing = 'border-box';
+            inner.style.height = initialHeight + 'px';
+            inner.style.transition = 'height 260ms cubic-bezier(.2,.9,.2,1), opacity 200ms ease';
+            inner.style.opacity = '1';
+
+            td.appendChild(inner);
+            wrapper.appendChild(td);
+
+            // remember where focus was and a sensible fallback target
+            const focusedWasInside = row.contains(document.activeElement);
+            let fallbackTarget = null;
+            const nextRow = row.nextElementSibling;
+            const prevRow = row.previousElementSibling;
+            const findFocusable = (r) => r && r.querySelector && r.querySelector('button:not(.hidden), [tabindex], a, input, select, .select-selected');
+            if (nextRow) fallbackTarget = findFocusable(nextRow);
+            if (!fallbackTarget && prevRow) fallbackTarget = findFocusable(prevRow);
+
+            // replace the original row with wrapper in place
+            parent.replaceChild(wrapper, row);
+
+            // force reflow
+            inner.getBoundingClientRect();
+
+            // start collapse on next frame
+            requestAnimationFrame(() => {
+                inner.style.height = '0px';
+                inner.style.opacity = '0';
+                // also remove any internal td paddings to make lines meet perfectly
+                Array.from(inner.querySelectorAll('td')).forEach(it => {
+                    it.style.transition = 'padding 240ms ease';
+                    it.style.paddingTop = '0';
+                    it.style.paddingBottom = '0';
+                });
+            });
+
+            let cleaned = false;
+            const finish = () => {
+                if (cleaned) return; cleaned = true;
+                if (wrapper.parentNode) wrapper.remove();
+                if (typeof onComplete === 'function') onComplete();
+                // restore sensible focus if the removed row previously had focus
+                if (focusedWasInside) {
+                    try {
+                        if (fallbackTarget) fallbackTarget.focus();
+                        else document.body.focus();
+                    } catch (e) { /* ignore focus errors */ }
+                }
+            };
+
+            const onEnd = (ev) => {
+                if (ev.target !== inner) return;
+                inner.removeEventListener('transitionend', onEnd);
+                finish();
+            };
+            inner.addEventListener('transitionend', onEnd);
+
+            // fallback
+            setTimeout(finish, 500);
         }
 
         function createRow(isLast = false, initialSelectedName = "") {
@@ -313,12 +456,12 @@
             removeBtn.className = "remove-btn";
             removeBtn.setAttribute('aria-label', 'Remove');
             // inline SVG provided by user, scaled down to fit the control
-            removeBtn.innerHTML = `<svg  xmlns="http://www.w3.org/2000/svg"
+            removeBtn.innerHTML = `<span class="control-inner"><svg  xmlns="http://www.w3.org/2000/svg"
                 viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
                 <circle class="remove-icon-circle" cx="12" cy="12" r="12"/>
                 <line class="remove-icon-line" x1="7" y1="7" x2="17" y2="17"/>
                 <line class="remove-icon-line" x1="17" y1="7" x2="7" y2="17"/>
-                </svg>`;
+                </svg></span>`;
             // hide remove button for empty rows initially
             removeBtn.classList.add("hidden");
             // create dropdown container and instance
@@ -335,30 +478,32 @@
             playBtn.className = "action-btn run hidden";
             playBtn.setAttribute('aria-label', 'Run');
             playBtn.innerHTML = `
-                <svg viewBox="0 0 16 19" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M277.71,30.091a.8.8,0,0,1,0,1.433l-7.206,4.5-6.674,4.17c-.675.422-1.679.048-1.679-.626V22.3c0-.779,1.16-1.211,1.941-.723l6.411,4.006Z" transform="translate(-262.152 -21.375)" fill="currentColor"/></svg>
-                <span class='btn-label'>RUN</span>
+                <span class="control-inner"><svg viewBox="0 0 16 19" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M277.71,30.091a.8.8,0,0,1,0,1.433l-7.206,4.5-6.674,4.17c-.675.422-1.679.048-1.679-.626V22.3c0-.779,1.16-1.211,1.941-.723l6.411,4.006Z" transform="translate(-262.152 -21.375)" fill="currentColor"/></svg>
+                <span class='btn-label'>RUN</span></span>
             `;
 
             const stopBtn = document.createElement("button");
             stopBtn.className = "action-btn stop hidden";
             stopBtn.setAttribute('aria-label', 'Stop');
             stopBtn.innerHTML = `
-                <svg viewBox="0 0 19 19" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><rect width="19" height="19" rx="2" fill="currentColor"/></svg>
-                <span class='btn-label'>STOP</span>
+                <span class="control-inner"><svg viewBox="0 0 19 19" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><rect width="19" height="19" rx="2" fill="currentColor"/></svg>
+                <span class='btn-label'>STOP</span></span>
             `;
 
             const downloadBtn = document.createElement("button");
             downloadBtn.className = "action-btn download hidden";
             downloadBtn.setAttribute('aria-label', 'Download');
             downloadBtn.innerHTML = `
-                <svg viewBox="0 0 24 20" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M-1793,3924a2,2,0,0,1-2-2v-5a2,2,0,0,1,2-2h3.482l5.235,6.406.206.2a1.652,1.652,0,0,0,1.066.39,1.667,1.667,0,0,0,1.278-.6l5.231-6.4h3.5a2,2,0,0,1,2,2v5a2,2,0,0,1-2,2Zm16-3h3v-3h-3Zm-15,0h3v-3h-3Zm8.494-1.235-6.358-7.783a.606.606,0,0,1,.505-.982H-1787v-5a2,2,0,0,1,2-2h4a2,2,0,0,1,2,2v5h2.359a.606.606,0,0,1,.5.981l-6.361,7.784a.652.652,0,0,1-.505.235A.649.649,0,0,1-1783.506,3919.765Z" transform="translate(1795 -3904)" fill="currentColor"/></svg>
-                <span class='btn-label'>LOAD</span>
+                <span class="control-inner"><svg viewBox="0 0 24 20" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M-1793,3924a2,2,0,0,1-2-2v-5a2,2,0,0,1,2-2h3.482l5.235,6.406.206.2a1.652,1.652,0,0,0,1.066.39,1.667,1.667,0,0,0,1.278-.6l5.231-6.4h3.5a2,2,0,0,1,2,2v5a2,2,0,0,1-2,2Zm16-3h3v-3h-3Zm-15,0h3v-3h-3Zm8.494-1.235-6.358-7.783a.606.606,0,0,1,.505-.982H-1787v-5a2,2,0,0,1,2-2h4a2,2,0,0,1,2,2v5h2.359a.606.606,0,0,1,.5.981l-6.361,7.784a.652.652,0,0,1-.505.235A.649.649,0,0,1-1783.506,3919.765Z" transform="translate(1795 -3904)" fill="currentColor"/></svg>
+                <span class='btn-label'>LOAD</span></span>
             `;
 
             const slotBtn = document.createElement("button");
             slotBtn.className = "slot-btn empty";
             slotBtn.setAttribute('aria-label', 'Slot');
-            slotBtn.appendChild(makeSlotIcon('2'));
+            // wrap slot icon in control-inner so it can slide in visually
+            slotBtn.innerHTML = `<span class="control-inner"></span>`;
+            slotBtn.querySelector('.control-inner').appendChild(makeSlotIcon('2'));
             // hide slot button for empty rows until a program is selected
             slotBtn.classList.add('hidden');
             // clicking the slot button should open a small slot-picker dropdown
@@ -386,13 +531,9 @@
                     dropdown.selectedValue = initialSelectedName;
                     // set slot button number and mark as filled
                     slotBtn.querySelector('.slot-number').textContent = item.slot;
-                    slotBtn.classList.remove("empty");
-                    slotBtn.classList.remove('hidden');
-                    // show buttons for a filled row
-                    removeBtn.classList.remove("hidden");
-                    playBtn.classList.remove("hidden");
-                    stopBtn.classList.remove("hidden");
-                    downloadBtn.classList.remove("hidden");
+                        slotBtn.classList.remove("empty");
+                        // animate controls in if they're hidden
+                        if (removeBtn.classList.contains('hidden')) animateControlsIn();
                 }
             }
 
@@ -404,13 +545,8 @@
                 // update the slot button display and show it
                 slotBtn.querySelector('.slot-number').textContent = item.slot;
                 slotBtn.classList.remove('empty');
-                slotBtn.classList.remove('hidden');
-
-                // Show buttons
-                removeBtn.classList.remove('hidden');
-                playBtn.classList.remove('hidden');
-                stopBtn.classList.remove('hidden');
-                downloadBtn.classList.remove('hidden');
+                // animate controls in (only if not already visible)
+                if (removeBtn.classList.contains('hidden')) animateControlsIn();
 
                 // If this is the last row and there are still available options, add a new empty row
                 if (tr === tbody.lastElementChild) {
@@ -421,10 +557,36 @@
                 refreshPickers();
             });
 
+            // Animate the control buttons into view so they slide in and push the select
+            function animateControlsIn() {
+                // Animate controls starting from the ones adjacent to the select so the
+                // select appears pushed as they expand. Slide the inner content from
+                // the left while the button width expands so it looks like the buttons
+                // were off-screen to the left and are now pushing into place.
+                const controls = [slotBtn, removeBtn, downloadBtn, stopBtn, playBtn];
+                controls.forEach((btn, idx) => {
+                    // reveal element (remove display:none)
+                    btn.classList.remove('hidden');
+                    // prepare inner sliding state
+                    const inner = btn.querySelector('.control-inner');
+                    if (inner) inner.classList.remove('in');
+                    // start collapsed so it has zero width (push effect)
+                    btn.classList.add('collapsed-control');
+                    // force layout then expand width; inner will slide in shortly after
+                    btn.getBoundingClientRect();
+                    setTimeout(() => {
+                        btn.classList.remove('collapsed-control');
+                        // slight delay so width expansion begins, then slide inner content
+                        setTimeout(() => { if (inner) inner.classList.add('in'); }, 30);
+                    }, idx * 50);
+                });
+            }
+
             removeBtn.addEventListener("click", () => {
-                tr.remove();
-                refreshPickers();
-                ensureTrailingEmptyRow();
+                animateRemoveRow(tr, () => {
+                    refreshPickers();
+                    ensureTrailingEmptyRow();
+                });
             });
 
             playBtn.addEventListener("click", () => alert(`Run ${ddContainer._dropdown && ddContainer._dropdown.selectedValue}`));
