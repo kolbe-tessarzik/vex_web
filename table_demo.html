@@ -172,27 +172,27 @@
             display: none;
         }
 
-        /* .slot-picker-item .slot-icon svg, */
-        .slot-btn .slot-icon svg {
+        .slot-btn {
+            /* Make the control visually just the SVG (no button chrome) */
+            background: transparent;
+            border: none;
+            /* outline: none; */
+        }
+
+        .slot-icon  {
             width: 22px;
             height: 22px;
             display: block;
-            fill: #0875e2;
-            transform: translate(0,30%);
+            fill: #0866e2;
+            outline: none
         }
 
-        /* .slot-picker-item .slot-number, */
-        .slot-btn .slot-number {
-            color: #ffffff;
-            font-size: 11px;
+        .slot-number {
+            fill: #ffffff;
+            font-size: 14px;
             font-weight: 700;
             line-height: 1;
-            text-align: center;
-            transform: translate(-35%, -90%);
-        }
-        /* .slot-picker-item .slot-number span, */
-        .slot-btn .slot-number span {
-            display: block
+            transform: translate(25%, 80%);
         }
         .slot-btn.empty .slot-number { opacity: 0.6; }
 
@@ -204,6 +204,8 @@
             border-radius: 6px;
             overflow: hidden;
             z-index: 2000;
+            /* ensure the floating picker uses the same sans-serif UI font as the table */
+            font-family: sans-serif;
         }
 
         .slot-picker-item {
@@ -356,14 +358,7 @@
             const slotBtn = document.createElement("button");
             slotBtn.className = "slot-btn empty";
             slotBtn.setAttribute('aria-label', 'Slot');
-            slotBtn.innerHTML = `
-                <span class="slot-icon">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 22 22" aria-hidden="true" focusable="false">
-                        <path d="M429.673,19.5v4.255h-4.007V41.5h18.053V37.331h3.947V19.5Zm16.494,15.672h-2.448V23.752H431.173V21.118h14.994Z" transform="translate(-425.666 -19.497)">
-                    </svg>
-                </span>
-                <span class="slot-number">#</span>
-            `;
+            slotBtn.appendChild(makeSlotIcon('2'));
             // hide slot button for empty rows until a program is selected
             slotBtn.classList.add('hidden');
             // clicking the slot button should open a small slot-picker dropdown
@@ -453,6 +448,19 @@
         if (INIT_WITH_ALL) initSelectAll();
         else ensureTrailingEmptyRow();
 
+
+        function makeSlotIcon(n) {
+            let icon = document.createElement('div');
+            icon.className = 'slot-wrapper';
+            icon.innerHTML = `
+                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 22 22" aria-hidden="true" focusable="false">
+                    <path class="slot-icon" d="M429.673,19.5v4.255h-4.007V41.5h18.053V37.331h3.947V19.5Zm16.494,15.672h-2.448V23.752H431.173V21.118h14.994Z" transform="translate(-425.666 -19.497)"/>
+                    <text class="slot-number" x="0" y="0">${n}</text>
+                </svg>
+            `;
+            return icon;
+        }
+
         // --- Slot picker implementation ---
         // Simple floating picker positioned below the slot button. Calls `onPick(num)`
         // when a number is chosen.
@@ -465,15 +473,7 @@
             [1,2,3,4,5,6,7,8].forEach(n => {
                 const it = document.createElement('div');
                 it.className = 'slot-picker-item';
-                //it.textContent = `Slot ${n}`;
-                it.innerHTML = `
-                    <span class="slot-icon">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 22 22" aria-hidden="true" focusable="false">
-                            <path d="M429.673,19.5v4.255h-4.007V41.5h18.053V37.331h3.947V19.5Zm16.494,15.672h-2.448V23.752H431.173V21.118h14.994Z" transform="translate(-425.666 -19.497)" fill="#0875e2"/>
-                        </svg>
-                    </span>
-                    <span class="slot-number">${n}</span>
-                `;
+                it.appendChild(makeSlotIcon(n));
                 it.addEventListener('click', () => {
                     onPick(n);
                     list.remove();
@@ -486,7 +486,7 @@
             // position
             const rect = anchorBtn.getBoundingClientRect();
             list.style.position = 'absolute';
-            list.style.minWidth = '120px';
+            list.style.minWidth = '50px';
             list.style.left = (rect.left + window.scrollX) + 'px';
             list.style.top = (rect.bottom + window.scrollY) + 'px';
             // close on outside click
