@@ -332,6 +332,7 @@
       <button id="clearBtn">Clear</button>
       <button id="selectProgram">Select Program</button>
       <button id="selectProjectDir">Select Project Dir</button>
+      <button id="importCodeFolder">Import Code Folder</button>
       <input type="file" id="fileInput" style="display:none" accept=".py,.iqpython" />
       <button id="download">
         <img src="download.svg" alt="Download" width="24" height="24">
@@ -390,12 +391,10 @@
   <div id="chartContainer">
     <canvas id="myChart"></canvas>
   </div>
-
   <script type="module">
-    /* ============================================================================
-      * BLE Progress UI Controller
-      * ========================================================================== */
-
+    /*=============================================================================
+    * BLE Progress UI Controller
+    *============================================================================*/
     function setBleProgress(percent, status) {
       const bar = document.getElementById("bleProgress");
       const label = document.getElementById("blePercent");
@@ -532,7 +531,6 @@
       const nameParts = file.name.split('.');
       return nameParts[0];
     }
-    let progress;
 
     document.getElementById("selectProgram").addEventListener('click', async () => {
       [programFileHandle] = await window.showOpenFilePicker({
@@ -567,6 +565,41 @@
       }, 500);
     });
 
+    async function getAllFilePaths(dir_handles, path = null, project_handles = {}) {
+      const final_dir = dir_handles.at(-1);
+      for await (const entry of final_dir.values()) {
+        const fullPath = `${path ?? final_dir.name}/${entry.name}`;
+        if (entry.kind === 'file') {
+          if (entry.name == 'vex_project_settings.json') {
+            // MyProject          / .vscode            / vex_project_settings.json
+            // ^                    ^                    ^
+            // |                    |                    |
+            // dir_handles.at(-2)   dir_handles.at(-1)   entry
+            // project_dir
+            const project_path = fullPath.split('/').slice(0, -2).join('/');
+            const project_dir = dir_handles.at(-2);
+            project_handles[project_path] = project_dir;
+          }
+          else if (entry.name.endsWith('.iqpython')) {
+            project_handles[fullPath] = entry;
+          }
+        } else if (entry.kind === 'directory') {
+          const new_handles = dir_handles.slice();
+          new_handles.push(entry);
+          // Recursively call for subdirectories
+          await getAllFilePaths(new_handles, fullPath, project_handles);
+        }
+      }
+      return project_handles;
+    }
+
+    document.getElementById('importCodeFolder').addEventListener('click', async () => {
+      let codeHandle = await window.showDirectoryPicker({
+        startIn: directoryHandle || "documents",
+      });
+      window.projects = await getAllFilePaths([codeHandle]);
+    });
+
     document.getElementById("download").addEventListener('click', async () => {
       if (programFileHandle) {
         console.log("programFileHandle is truthy");
@@ -598,7 +631,6 @@
         return;
       }
     });
-
 
     // =======================================================
     // Main program
