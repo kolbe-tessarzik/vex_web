@@ -199,6 +199,84 @@
     height: 100%;
   }
 
+  .ble-progress-wrapper {
+    position: fixed;       /* keeps it relative to the viewport */
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;          /* important so flex centering works */
+    display: flex;
+    align-items: center;   /* vertical center */
+    justify-content: center; /* horizontal center */
+    z-index: 9999;         /* above everything else */
+    pointer-events: auto;
+  }
+
+  .ble-progress {
+      width: 520px;
+      padding: 28px 32px 32px;
+      border-radius: 16px;
+      background: #ffffff;
+      box-shadow:
+          0 12px 32px rgba(0, 0, 0, 0.12),
+          0 2px 6px rgba(0, 0, 0, 0.08);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  }
+
+  .ble-progress-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 14px;
+  }
+
+  .ble-status {
+      font-size: 18px;
+      font-weight: 600;
+      color: #222;
+  }
+
+  .ble-percent {
+      font-size: 16px;
+      font-weight: 500;
+      color: #555;
+      font-variant-numeric: tabular-nums;
+  }
+
+  .ble-progress-track {
+      height: 16px;
+      background: #e6e8eb;
+      border-radius: 999px;
+      overflow: hidden;
+  }
+
+  .ble-progress-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #4f8cff, #6bb7ff);
+      border-radius: 999px;
+      transition: width 200ms ease-out;
+  }
+
+  /* States */
+  .ble-progress.complete .ble-progress-fill {
+      background: linear-gradient(90deg, #2eb872, #6fe3a1);
+  }
+
+  .ble-progress.error .ble-progress-fill {
+      background: linear-gradient(90deg, #e5533d, #ff7b66);
+  }
+
+  .ble-progress.error .ble-progress-track {
+      background: #f3d6d2;
+  }
+
+  .ble-progress-wrapper.hidden {
+  display: none;
+  pointer-events: none;
+  }
+
+
 </style>
 <script src="ble_sniffer.js" defer></script>
 <script src="vex-ble-device-manager.js" defer></script>
@@ -275,6 +353,19 @@
   </div>
 </div>
 
+<div class="ble-progress-wrapper">
+  <div class="ble-progress">
+    <div class="ble-progress-header">
+      <span class="ble-status">Downloading to device…</span>
+      <span class="ble-percent" id="blePercent">0%</span>
+    </div>
+
+    <div class="ble-progress-track">
+      <div class="ble-progress-fill" id="bleProgress"></div>
+    </div>
+  </div>
+</div>
+
 <button id="snapshot">Snapshot</button>
 <button id="canvasButton">Show Chart</button>
 
@@ -284,6 +375,124 @@
 </div>
 
 <script type="module">
+/* ============================================================================
+  * BLE Progress UI Controller
+  * ========================================================================== */
+
+function setBleProgress(percent, status) {
+  const bar = document.getElementById("bleProgress");
+  const label = document.getElementById("blePercent");
+  const statusEl = document.querySelector(".ble-status");
+
+  bar.style.width = percent + "%";
+  label.textContent = percent + "%";
+
+  if (status) {
+    statusEl.textContent = status;
+  }
+}
+
+const BleProgressUI = (() => {
+  let lastPercent = 0;
+  let visible = false;
+
+  function container() {
+    return document.querySelector(".ble-progress");
+  }
+
+  function setPercent(percent, statusText) {
+    const el = container();
+    if (!el) return;
+
+    lastPercent = Math.max(0, Math.min(100, percent));
+
+    el.classList.remove("error", "complete");
+    el.classList.add("active");
+
+    setBleProgress(lastPercent, statusText);
+  }
+
+  function setInProgress(statusText = "Downloading…") {
+    const el = container();
+    if (!el) return;
+
+    el.classList.remove("error", "complete");
+    el.classList.add("active");
+
+    setBleProgress(lastPercent, statusText);
+  }
+
+  function setSuccess(statusText = "Complete") {
+    const el = container();
+    if (!el) return;
+
+    lastPercent = 100;
+
+    el.classList.remove("active", "error");
+    el.classList.add("complete");
+
+    setBleProgress(100, statusText);
+  }
+
+  function setFailure(statusText = "Transfer failed") {
+    const el = container();
+    if (!el) return;
+
+    el.classList.remove("active", "complete");
+    el.classList.add("error");
+
+    // Freeze bar at last known progress
+    setBleProgress(lastPercent, `Error: ${statusText}`);
+  }
+
+  function show() {
+    const el = container();
+    const wrapper = document.querySelector(".ble-progress-wrapper");
+    visible = true;
+    wrapper.classList.remove("hidden");
+    el.classList.remove("hidden")
+  }
+
+  function hide() {
+    const el = container();
+    const wrapper = document.querySelector(".ble-progress-wrapper");
+    visible = false;
+    wrapper.classList.add("hidden");
+    el.classList.add("hidden")
+  }
+
+  function getLastPercent() {
+    return lastPercent;
+  }
+
+  function isVisible() {
+    return visible;
+  }
+
+  hide();
+
+  return {
+    setPercent,
+    setInProgress,
+    setSuccess,
+    setFailure,
+    show,
+    hide,
+    getLastPercent,
+    isVisible
+  };
+})();
+
+function downloadCallback(prog_dict) {
+  console.log(`Downloading: ${prog_dict.progress * 100}%`)
+  BleProgressUI.show();
+  BleProgressUI.setInProgress("Downloading");
+  BleProgressUI.setPercent(Math.floor(prog_dict.progress * 100));
+  if (prog_dict.progress == 1) {
+    BleProgressUI.setSuccess("Download Complete!");
+  }
+}
+
 let masterHandle = null;
 let programFileHandle = null;
 let directoryHandle = null;
@@ -356,7 +565,8 @@ document.getElementById("download").addEventListener('click', async () => {
         const slotNum = parseInt(slotPicker.value, 10);
         const slotIndex = slotNum - 1;
         console.log(await get_file_name(masterHandle));
-        await downloadProgram(slotIndex, await get_file_name(masterHandle), "python", programData, (data) => { progress = data.progress; }, "Python");
+        await downloadProgram(slotIndex, await get_file_name(masterHandle), "python", programData, downloadCallback, "Python");
+        BleProgressUI.hide();
     } else {
         alert("No program selected. Please select a file first.");
         return;
