@@ -505,7 +505,7 @@
       const current_time = Date.now();
       console.log(`Downloading:`, prog_dict);
       BleProgressUI.show();
-      BleProgressUI.setInProgress("Downloading" + " .".repeat(Math.floor((current_time % 2000)*4/2000)));
+      BleProgressUI.setInProgress("Downloading" + " .".repeat(Math.floor((current_time % 2000) * 4 / 2000)));
       BleProgressUI.setPercent(Math.floor(prog_dict.progress * 100));
       if (prog_dict.progress == 1) {
         BleProgressUI.setSuccess("Download Complete!");
@@ -567,6 +567,59 @@
       }, 500);
     });
 
+    /**
+    * @param {FileSystemDirectoryHandle} handle
+    */
+    async function getFileText(handle) {
+      const file = await handle.getFile();
+      return await file.text();
+    }
+
+    async function getProjectJSON(handle) {
+      let jsonHandle;
+      switch (handle.kind) {
+        case ('file'):
+          jsonHandle = handle;
+          break;
+        case ('directory'):
+          jsonHandle = await (await handle.getDirectoryHandle('.vscode')).getFileHandle('vex_project_settings.json');
+          break;
+        default:
+          throw new Error(`Unrecognized handle kind: ${handle.kind}`);
+      }
+      const jsonFile = await jsonHandle.getFile();
+      const jsonText = await jsonFile.text();
+      const dict = JSON.parse(jsonText);
+      if (dict) {
+        return dict;
+      } else {
+        throw new Error(`JSON parsed to ${dict}`);
+      }
+    }
+
+    async function getProjectName(handle) {
+      switch (handle.kind) {
+        case ('file'):
+          return handle.name.slice(0, -9);
+        case ('directory'):
+          // vscode folder handle
+          return (await getProjectJSON(handle)).project.name;
+        default:
+          throw new Error(`Unexpected handle type: ${handle.kind}`);
+      }
+    }
+
+    async function getProjectSlot(handle) {
+      // return the 1-indexed slot number
+      // of the project passed in
+      switch (handle.kind) {
+        case ('file'):
+          return (await getProjectJSON(handle)).slot + 1;
+        case ('directory'):
+          return (await getProjectJSON(handle)).project.slot;
+      }
+    }
+
     async function getAllFilePaths(dir_handles, path = null, project_handles = {}) {
       const final_dir = dir_handles.at(-1);
       for await (const entry of final_dir.values()) {
@@ -600,13 +653,18 @@
         startIn: directoryHandle || "documents",
       });
       window.projects = await getAllFilePaths([codeHandle]);
+      for (const [fullPath, handle] of Object.entries(window.projects)) {
+        const projectName = await getProjectName(handle);
+        const slot = await getProjectSlot(handle);
+        console.log(`${projectName} (${slot}): ${fullPath}`);
+      }
     });
 
     document.getElementById("download").addEventListener('click', async () => {
       if (programFileHandle) {
         console.log("programFileHandle is truthy");
         // Re-read latest version in case it changed externally
-        const file = await programFileHandle.getFile();
+        let file = await handle.getFile();
         let file_text = await file.text();
         let programText;
         let file_extension = get_extension(file);
@@ -614,8 +672,7 @@
           programText = file_text;
         } else {
           try {
-            let parsedText = JSON.parse(file_text)
-            programText = parsedText.textContent;
+            programText = JSON.parse(file_text).textContent;
           } catch (e) {
             log("Invalid file");
             console.warn(`Invalid file; error was: ${e.message}\nExtension was: ${file_extension}`);
