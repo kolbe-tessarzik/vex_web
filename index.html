@@ -1,548 +1,564 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-<meta charset="UTF-8">
-<title>VEX IQ BLE Control</title>
-<style>
-  body {
-    font-family: sans-serif;
-    padding: 20px;
-    background: #f5f5f5;
-  }
+  <meta charset="UTF-8">
+  <title>VEX IQ BLE Control</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 20px;
+      background: #f5f5f5;
+    }
 
-  button,
-  select {
-    font-size: 1rem;
-    margin: 5px;
-    padding: 10px 15px;
-  }
+    button,
+    select {
+      font-size: 1rem;
+      margin: 5px;
+      padding: 10px 15px;
+    }
 
-  #stdout {
-    white-space: pre;
-    border: 1px solid #ccc;
-    background: #111;
-    color: rgb(255, 255, 255);
-    padding: 10px;
-    height: 400px;
-    overflow-y: scroll;
-    font-family: monospace;
-  }
+    #stdout {
+      white-space: pre;
+      border: 1px solid #ccc;
+      background: #111;
+      color: rgb(255, 255, 255);
+      padding: 10px;
+      height: 400px;
+      overflow-y: scroll;
+      font-family: monospace;
+    }
 
-  #log {
-    border: 1px solid #ccc;
-    background: #111;
-    color: #0f0;
-    padding: 10px;
-    height: 200px;
-    overflow-y: scroll;
-    font-family: monospace;
-  }
+    #log {
+      border: 1px solid #ccc;
+      background: #111;
+      color: #0f0;
+      padding: 10px;
+      height: 200px;
+      overflow-y: scroll;
+      font-family: monospace;
+    }
 
-  #structured {
-    white-space: pre;
-  }
+    #structured {
+      white-space: pre;
+    }
 
-  .controls {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;            /* space between rows */
-  }
+    .controls {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      /* space between rows */
+    }
 
-  .row {
-    display: flex;
-    gap: 2px;            /* space between buttons */
-    align-items: center;
-  }
+    .row {
+      display: flex;
+      gap: 2px;
+      /* space between buttons */
+      align-items: center;
+    }
 
-  /* Dimmed background */
-  .modal-backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.4);
-    display: none;
-    justify-content: center;
-    align-items: center;
-    z-index: 1000;
-  }
+    /* Dimmed background */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.4);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
 
-  /* Modal box */
-  .modal {
-    width: 480px;
-    background: white;
-    border-radius: 12px;
-    overflow: hidden;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-  }
+    /* Modal box */
+    .modal {
+      width: 480px;
+      background: white;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    }
 
-  /* Header */
-  .modal-header {
-    background: #e5e6e9;
-    padding: 20px;
-    font-size: 24px;
-    font-weight: 600;
-    text-align: center;
-  }
+    /* Header */
+    .modal-header {
+      background: #e5e6e9;
+      padding: 20px;
+      font-size: 24px;
+      font-weight: 600;
+      text-align: center;
+    }
 
-  /* Body */
-  .modal-body {
-    padding: 30px;
-    font-size: 20px;
-    text-align: center;
-  }
+    /* Body */
+    .modal-body {
+      padding: 30px;
+      font-size: 20px;
+      text-align: center;
+    }
 
-  .modal-body input {
-    width: 80%;
-    font-size: 24px;
-    padding: 12px;
-    margin-top: 20px;
-    border-radius: 8px;
-    border: 2px solid #ccc;
-    outline: none;
-    text-align: center;
-  }
+    .modal-body input {
+      width: 80%;
+      font-size: 24px;
+      padding: 12px;
+      margin-top: 20px;
+      border-radius: 8px;
+      border: 2px solid #ccc;
+      outline: none;
+      text-align: center;
+    }
 
-  .invalid {
-    background: #ff8a3d;        /* the orange fill */
-    border-color: #0057ff;      /* bright blue outline */
-    border-width: 3px;
-  }
+    .invalid {
+      background: #ff8a3d;
+      /* the orange fill */
+      border-color: #0057ff;
+      /* bright blue outline */
+      border-width: 3px;
+    }
 
-  .modal-body input:focus {
-    border-color: #6ba5ff;
-  }
+    .modal-body input:focus {
+      border-color: #6ba5ff;
+    }
 
-  /* Footer */
-  .modal-footer {
-    padding: 20px;
-    display: flex;
-    justify-content: flex-end;
-    gap: 12px;
-  }
+    /* Footer */
+    .modal-footer {
+      padding: 20px;
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+    }
 
-  .btn {
-    font-size: 18px;
-    padding: 10px 22px;
-    border-radius: 8px;
-    border: none;
-    cursor: pointer;
-  }
+    .btn {
+      font-size: 18px;
+      padding: 10px 22px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+    }
 
-  button .icon {
-    fill: black;           /* whatever color you want for enabled */
-    transition: fill 0.2s;
-  }
+    button .icon {
+      fill: black;
+      /* whatever color you want for enabled */
+      transition: fill 0.2s;
+    }
 
-  /* Icon color when button is disabled */
-  button:disabled .icon {
-    fill: rgb(188, 188, 188);            /* grayed-out color */
-  }
+    /* Icon color when button is disabled */
+    button:disabled .icon {
+      fill: rgb(188, 188, 188);
+      /* grayed-out color */
+    }
 
 
-  .btn-cancel {
-    background: #5b6168;
-    color: white;
-  }
+    .btn-cancel {
+      background: #5b6168;
+      color: white;
+    }
 
-  .btn-submit {
-    background: #a8c5ff;
-    color: white;
-  }
+    .btn-submit {
+      background: #a8c5ff;
+      color: white;
+    }
 
-  .btn-submit.enabled {
-    background: #6ba5ff;
-  }
+    .btn-submit.enabled {
+      background: #6ba5ff;
+    }
 
-  #snapshot {
-    position: fixed;
-    top: 20px;   /* Distance from the top edge of the browser window */
-    left: 20px; /* Distance from the right edge of the browser window */
-    /* optional: add z-index to ensure it stays on top of other elements */
-    z-index: 1000;
+    #snapshot {
+      position: fixed;
+      top: 20px;
+      /* Distance from the top edge of the browser window */
+      left: 20px;
+      /* Distance from the right edge of the browser window */
+      /* optional: add z-index to ensure it stays on top of other elements */
+      z-index: 1000;
 
-  }
+    }
 
-  #canvasButton {
-    position: fixed;
-    top: 20px;   /* Distance from the top edge of the browser window */
-    right: 20px; /* Distance from the right edge of the browser window */
-    /* optional: add z-index to ensure it stays on top of other elements */
-    z-index: 1000;
-  }
+    #canvasButton {
+      position: fixed;
+      top: 20px;
+      /* Distance from the top edge of the browser window */
+      right: 20px;
+      /* Distance from the right edge of the browser window */
+      /* optional: add z-index to ensure it stays on top of other elements */
+      z-index: 1000;
+    }
 
     /* Dim overlay */
-  #overlay {
-    display: none;
-    position: fixed;
-    top: 0; left: 0;
-    width: 100vw;
-    height: 100vh;
-    background-color: rgba(0,0,0,0.5);
-    z-index: 10;
-  }
+    #overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background-color: rgba(0, 0, 0, 0.5);
+      z-index: 10;
+    }
 
-  /* Chart container */
-  #chartContainer {
-    display: none;
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: calc(100vw - 90px);
-    height: calc(100vh - 130px);
-    border: 1px solid black;
-    background-color: white;
-    z-index: 20;
-  }
+    /* Chart container */
+    #chartContainer {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: calc(100vw - 90px);
+      height: calc(100vh - 130px);
+      border: 1px solid black;
+      background-color: white;
+      z-index: 20;
+    }
 
-  canvas {
-    width: 100%;
-    height: 100%;
-  }
+    canvas {
+      width: 100%;
+      height: 100%;
+    }
 
-  .ble-progress-wrapper {
-    position: fixed;       /* keeps it relative to the viewport */
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;          /* important so flex centering works */
-    display: flex;
-    align-items: center;   /* vertical center */
-    justify-content: center; /* horizontal center */
-    z-index: 9999;         /* above everything else */
-    pointer-events: auto;
-  }
+    .ble-progress-wrapper {
+      position: fixed;
+      /* keeps it relative to the viewport */
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      /* important so flex centering works */
+      display: flex;
+      align-items: center;
+      /* vertical center */
+      justify-content: center;
+      /* horizontal center */
+      z-index: 9999;
+      /* above everything else */
+      pointer-events: auto;
+    }
 
-  .ble-progress {
+    .ble-progress {
       width: 520px;
       padding: 28px 32px 32px;
       border-radius: 16px;
       background: #ffffff;
       box-shadow:
-          0 12px 32px rgba(0, 0, 0, 0.12),
-          0 2px 6px rgba(0, 0, 0, 0.08);
+        0 12px 32px rgba(0, 0, 0, 0.12),
+        0 2px 6px rgba(0, 0, 0, 0.08);
       font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-  }
+    }
 
-  .ble-progress-header {
+    .ble-progress-header {
       display: flex;
       justify-content: space-between;
       align-items: baseline;
       margin-bottom: 14px;
-  }
+    }
 
-  .ble-status {
+    .ble-status {
       font-size: 18px;
       font-weight: 600;
       color: #222;
-  }
+    }
 
-  .ble-percent {
+    .ble-percent {
       font-size: 16px;
       font-weight: 500;
       color: #555;
       font-variant-numeric: tabular-nums;
-  }
+    }
 
-  .ble-progress-track {
+    .ble-progress-track {
       height: 16px;
       background: #e6e8eb;
       border-radius: 999px;
       overflow: hidden;
-  }
+    }
 
-  .ble-progress-fill {
+    .ble-progress-fill {
       height: 100%;
       width: 0%;
       background: linear-gradient(90deg, #4f8cff, #6bb7ff);
       border-radius: 999px;
       transition: width 200ms ease-out;
-  }
+    }
 
-  /* States */
-  .ble-progress.complete .ble-progress-fill {
+    /* States */
+    .ble-progress.complete .ble-progress-fill {
       background: linear-gradient(90deg, #2eb872, #6fe3a1);
-  }
+    }
 
-  .ble-progress.error .ble-progress-fill {
+    .ble-progress.error .ble-progress-fill {
       background: linear-gradient(90deg, #e5533d, #ff7b66);
-  }
+    }
 
-  .ble-progress.error .ble-progress-track {
+    .ble-progress.error .ble-progress-track {
       background: #f3d6d2;
-  }
+    }
 
-  .ble-progress-wrapper.hidden {
-  display: none;
-  pointer-events: none;
-  }
-
-
-</style>
-<script src="ble_sniffer.js" defer></script>
-<script src="vex-ble-device-manager.js" defer></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    .ble-progress-wrapper.hidden {
+      display: none;
+      pointer-events: none;
+    }
+  </style>
+  <script src="ble_sniffer.js" defer></script>
+  <script src="vex-ble-device-manager.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
+
 <body>
 
-<h2>VEX IQ BLE Control</h2>
-<div class="controls">
-  <div class="row">
-    <button id="connectBtn">Connect</button>
-    <button id="rename">Rename</button>
-  </div>
+  <h2>VEX IQ BLE Control</h2>
+  <div class="controls">
+    <div class="row">
+      <button id="connectBtn">Connect</button>
+      <button id="rename">Rename</button>
+    </div>
 
-  <div class="row">
-    <select id="slotPicker">
-      <option value="1">Slot 1</option>
-      <option value="2">Slot 2</option>
-      <option value="3">Slot 3</option>
-      <option value="4">Slot 4</option>
-      <option value="5">Slot 5</option>
-      <option value="6">Slot 6</option>
-      <option value="7">Slot 7</option>
-      <option value="8">Slot 8</option>
-    </select>
-    <button id="startBtn">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 19" width="24" height="24">
+    <div class="row">
+      <select id="slotPicker">
+        <option value="1">Slot 1</option>
+        <option value="2">Slot 2</option>
+        <option value="3">Slot 3</option>
+        <option value="4">Slot 4</option>
+        <option value="5">Slot 5</option>
+        <option value="6">Slot 6</option>
+        <option value="7">Slot 7</option>
+        <option value="8">Slot 8</option>
+      </select>
+      <button id="startBtn">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 19" width="24" height="24">
           <path class="icon" d="M1 1 L15 9.5 L1 18 Z"></path>
-      </svg>
-    </button>
-    <button id="stopBtn">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 15 15" width="24" height="24">
+        </svg>
+      </button>
+      <button id="stopBtn">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 15 15" width="24" height="24">
           <rect class="icon" width="15" height="15" rx="2"></rect>
-      </svg>
-    </button>
-    <button id="clearBtn">Clear</button>
-    <button id="selectProgram">Select Program</button>
-    <button id="selectProjectDir">Select Project Dir</button>
-    <input type="file" id="fileInput" style="display:none" accept=".py,.iqpython" />
-    <button id="download">
-      <img src="download.svg" alt="Download" width="24" height="24">
-    </button>
+        </svg>
+      </button>
+      <button id="clearBtn">Clear</button>
+      <button id="selectProgram">Select Program</button>
+      <button id="selectProjectDir">Select Project Dir</button>
+      <input type="file" id="fileInput" style="display:none" accept=".py,.iqpython" />
+      <button id="download">
+        <img src="download.svg" alt="Download" width="24" height="24">
+      </button>
 
 
-  </div>
-</div>
-<div id="structured"></div>
-
-<h3>Brain Console</h3>
-<div id="stdout"></div>
-<h3>Log</h3>
-<div id="log"></div>
-
-<!-- modal backdrop goes LAST so it overlays everything -->
-<div id="backdrop" class="modal-backdrop">
-  <!-- Modal -->
-  <div class="modal">
-    <div class="modal-header">
-      Radio Connection Code
-    </div>
-
-    <div class="modal-body">
-      <span id="modal-text">
-      Enter the 4-digit Radio Connection Code displayed on the IQ Brain
-      </span>
-      <br>
-      <input id="modalInput" maxlength="4" />
-    </div>
-
-    <div class="modal-footer">
-      <button id="modalCancelBtn" class="btn btn-cancel">Cancel</button>
-      <button id="modalSubmitBtn" class="btn btn-submit" disabled>Submit</button>
     </div>
   </div>
-</div>
+  <div id="structured"></div>
 
-<div class="ble-progress-wrapper">
-  <div class="ble-progress">
-    <div class="ble-progress-header">
-      <span class="ble-status">Downloading to device…</span>
-      <span class="ble-percent" id="blePercent">0%</span>
-    </div>
+  <h3>Brain Console</h3>
+  <div id="stdout"></div>
+  <h3>Log</h3>
+  <div id="log"></div>
 
-    <div class="ble-progress-track">
-      <div class="ble-progress-fill" id="bleProgress"></div>
+  <!-- modal backdrop goes LAST so it overlays everything -->
+  <div id="backdrop" class="modal-backdrop">
+    <!-- Modal -->
+    <div class="modal">
+      <div class="modal-header">
+        Radio Connection Code
+      </div>
+
+      <div class="modal-body">
+        <span id="modal-text">
+          Enter the 4-digit Radio Connection Code displayed on the IQ Brain
+        </span>
+        <br>
+        <input id="modalInput" maxlength="4" />
+      </div>
+
+      <div class="modal-footer">
+        <button id="modalCancelBtn" class="btn btn-cancel">Cancel</button>
+        <button id="modalSubmitBtn" class="btn btn-submit" disabled>Submit</button>
+      </div>
     </div>
   </div>
-</div>
 
-<button id="snapshot">Snapshot</button>
-<button id="canvasButton">Show Chart</button>
+  <div class="ble-progress-wrapper">
+    <div class="ble-progress">
+      <div class="ble-progress-header">
+        <span class="ble-status">Downloading to device…</span>
+        <span class="ble-percent" id="blePercent">0%</span>
+      </div>
 
-<div id="overlay"></div>
-<div id="chartContainer">
-  <canvas id="myChart"></canvas>
-</div>
+      <div class="ble-progress-track">
+        <div class="ble-progress-fill" id="bleProgress"></div>
+      </div>
+    </div>
+  </div>
 
-<script type="module">
-/* ============================================================================
-  * BLE Progress UI Controller
-  * ========================================================================== */
+  <button id="snapshot">Snapshot</button>
+  <button id="canvasButton">Show Chart</button>
 
-function setBleProgress(percent, status) {
-  const bar = document.getElementById("bleProgress");
-  const label = document.getElementById("blePercent");
-  const statusEl = document.querySelector(".ble-status");
+  <div id="overlay"></div>
+  <div id="chartContainer">
+    <canvas id="myChart"></canvas>
+  </div>
 
-  bar.style.width = percent + "%";
-  label.textContent = percent + "%";
+  <script type="module">
+    /* ============================================================================
+      * BLE Progress UI Controller
+      * ========================================================================== */
 
-  if (status) {
-    statusEl.textContent = status;
-  }
-}
+    function setBleProgress(percent, status) {
+      const bar = document.getElementById("bleProgress");
+      const label = document.getElementById("blePercent");
+      const statusEl = document.querySelector(".ble-status");
 
-const BleProgressUI = (() => {
-  let lastPercent = 0;
-  let visible = false;
+      bar.style.width = percent + "%";
+      label.textContent = percent + "%";
 
-  function container() {
-    return document.querySelector(".ble-progress");
-  }
+      if (status) {
+        statusEl.textContent = status;
+      }
+    }
 
-  function setPercent(percent, statusText) {
-    const el = container();
-    if (!el) return;
+    const BleProgressUI = (() => {
+      let lastPercent = 0;
+      let visible = false;
 
-    lastPercent = Math.max(0, Math.min(100, percent));
+      function container() {
+        return document.querySelector(".ble-progress");
+      }
 
-    el.classList.remove("error", "complete");
-    el.classList.add("active");
+      function setPercent(percent, statusText) {
+        const el = container();
+        if (!el) return;
 
-    setBleProgress(lastPercent, statusText);
-  }
+        lastPercent = Math.max(0, Math.min(100, percent));
 
-  function setInProgress(statusText = "Downloading…") {
-    const el = container();
-    if (!el) return;
+        el.classList.remove("error", "complete");
+        el.classList.add("active");
 
-    el.classList.remove("error", "complete");
-    el.classList.add("active");
+        setBleProgress(lastPercent, statusText);
+      }
 
-    setBleProgress(lastPercent, statusText);
-  }
+      function setInProgress(statusText = "Downloading…") {
+        const el = container();
+        if (!el) return;
 
-  function setSuccess(statusText = "Complete") {
-    const el = container();
-    if (!el) return;
+        el.classList.remove("error", "complete");
+        el.classList.add("active");
 
-    lastPercent = 100;
+        setBleProgress(lastPercent, statusText);
+      }
 
-    el.classList.remove("active", "error");
-    el.classList.add("complete");
+      function setSuccess(statusText = "Complete") {
+        const el = container();
+        if (!el) return;
 
-    setBleProgress(100, statusText);
-  }
+        lastPercent = 100;
 
-  function setFailure(statusText = "Transfer failed") {
-    const el = container();
-    if (!el) return;
+        el.classList.remove("active", "error");
+        el.classList.add("complete");
 
-    el.classList.remove("active", "complete");
-    el.classList.add("error");
+        setBleProgress(100, statusText);
+      }
 
-    // Freeze bar at last known progress
-    setBleProgress(lastPercent, `Error: ${statusText}`);
-  }
+      function setFailure(statusText = "Transfer failed") {
+        const el = container();
+        if (!el) return;
 
-  function show() {
-    const el = container();
-    const wrapper = document.querySelector(".ble-progress-wrapper");
-    visible = true;
-    wrapper.classList.remove("hidden");
-    el.classList.remove("hidden")
-  }
+        el.classList.remove("active", "complete");
+        el.classList.add("error");
 
-  function hide() {
-    const el = container();
-    const wrapper = document.querySelector(".ble-progress-wrapper");
-    visible = false;
-    wrapper.classList.add("hidden");
-    el.classList.add("hidden")
-  }
+        // Freeze bar at last known progress
+        setBleProgress(lastPercent, `Error: ${statusText}`);
+      }
 
-  function getLastPercent() {
-    return lastPercent;
-  }
+      function show() {
+        const el = container();
+        const wrapper = document.querySelector(".ble-progress-wrapper");
+        visible = true;
+        wrapper.classList.remove("hidden");
+        el.classList.remove("hidden")
+      }
 
-  function isVisible() {
-    return visible;
-  }
+      function hide() {
+        const el = container();
+        const wrapper = document.querySelector(".ble-progress-wrapper");
+        visible = false;
+        wrapper.classList.add("hidden");
+        el.classList.add("hidden")
+      }
 
-  hide();
+      function getLastPercent() {
+        return lastPercent;
+      }
 
-  return {
-    setPercent,
-    setInProgress,
-    setSuccess,
-    setFailure,
-    show,
-    hide,
-    getLastPercent,
-    isVisible
-  };
-})();
+      function isVisible() {
+        return visible;
+      }
 
-function downloadCallback(prog_dict) {
-  console.log(`Downloading: ${prog_dict.progress * 100}%`)
-  BleProgressUI.show();
-  BleProgressUI.setInProgress("Downloading");
-  BleProgressUI.setPercent(Math.floor(prog_dict.progress * 100));
-  if (prog_dict.progress == 1) {
-    BleProgressUI.setSuccess("Download Complete!");
-  }
-}
+      hide();
 
-let masterHandle = null;
-let programFileHandle = null;
-let directoryHandle = null;
+      return {
+        setPercent,
+        setInProgress,
+        setSuccess,
+        setFailure,
+        show,
+        hide,
+        getLastPercent,
+        isVisible
+      };
+    })();
 
-function get_extension(file) {
-    const nameParts = file.name.split('.');
-    return nameParts[nameParts.length - 1];
-}
+    function downloadCallback(prog_dict) {
+      console.log(`Downloading: ${prog_dict.progress * 100}%`)
+      BleProgressUI.show();
+      BleProgressUI.setInProgress("Downloading");
+      BleProgressUI.setPercent(Math.floor(prog_dict.progress * 100));
+      if (prog_dict.progress == 1) {
+        BleProgressUI.setSuccess("Download Complete!");
+      }
+    }
 
-async function get_file_name(file_handle) {
-  let file;
-  if (file_handle.kind == 'directory') {
-    //const settings_file =
-    return file_handle.name;
-  } else {
-    file = await file_handle.getFile();
-  }
+    let masterHandle = null;
+    let programFileHandle = null;
+    let directoryHandle = null;
 
-    const nameParts = file.name.split('.');
-    return nameParts[0];
-}
-let progress;
+    function get_extension(file) {
+      const nameParts = file.name.split('.');
+      return nameParts[nameParts.length - 1];
+    }
 
-document.getElementById("selectProgram").addEventListener('click', async () => {
-    [programFileHandle] = await window.showOpenFilePicker({
-    id: "slot_1",
-    types: [{
-        description: "VEX IQ Python",
-        accept: { "text/plain": [".py", ".iqpython"] }
-    }],
-    multiple: false
+    async function get_file_name(file_handle) {
+      let file;
+      if (file_handle.kind == 'directory') {
+        //const settings_file =
+        return file_handle.name;
+      } else {
+        file = await file_handle.getFile();
+      }
+
+      const nameParts = file.name.split('.');
+      return nameParts[0];
+    }
+    let progress;
+
+    document.getElementById("selectProgram").addEventListener('click', async () => {
+      [programFileHandle] = await window.showOpenFilePicker({
+        id: "slot_1",
+        types: [{
+          description: "VEX IQ Python",
+          accept: { "text/plain": [".py", ".iqpython"] }
+        }],
+        multiple: false
+      });
+      const file = await programFileHandle.getFile();
+      let file_text = await file.text();
+      masterHandle = programFileHandle;
     });
-    const file = await programFileHandle.getFile();
-    let file_text = await file.text();
-    masterHandle = programFileHandle;
-});
 
-document.getElementById("selectProjectDir").addEventListener('click', async () => {
-    directoryHandle = await window.showDirectoryPicker({
-    startIn: directoryHandle || "documents",
+    document.getElementById("selectProjectDir").addEventListener('click', async () => {
+      directoryHandle = await window.showDirectoryPicker({
+        startIn: directoryHandle || "documents",
+      });
+      let srcDirectoryHandle = await directoryHandle.getDirectoryHandle("src");
+      programFileHandle = await srcDirectoryHandle.getFileHandle("main.py");
+      const file = await programFileHandle.getFile();
+      let file_text = await file.text();
+      masterHandle = directoryHandle;
     });
-    let srcDirectoryHandle = await directoryHandle.getDirectoryHandle("src");
-    programFileHandle = await srcDirectoryHandle.getFileHandle("main.py");
-    const file = await programFileHandle.getFile();
-    let file_text = await file.text();
-    masterHandle = directoryHandle;
-});
 
-document.getElementById("download").addEventListener('click', async () => {
-    if (programFileHandle) {
+    document.getElementById("download").addEventListener('click', async () => {
+      if (programFileHandle) {
         console.log("programFileHandle is truthy");
         // Re-read latest version in case it changed externally
         const file = await programFileHandle.getFile();
@@ -550,15 +566,15 @@ document.getElementById("download").addEventListener('click', async () => {
         let programText;
         let file_extension = get_extension(file);
         if (file_extension == "py") {
-            programText = file_text;
+          programText = file_text;
         } else {
-            try {
-                let parsedText = JSON.parse(file_text)
-                programText = parsedText.textContent;
-            } catch (e) {
-                log("Invalid file");
-                console.warn(`Invalid file; error was: ${e.message}\nExtension was: ${file_extension}`);
-            }
+          try {
+            let parsedText = JSON.parse(file_text)
+            programText = parsedText.textContent;
+          } catch (e) {
+            log("Invalid file");
+            console.warn(`Invalid file; error was: ${e.message}\nExtension was: ${file_extension}`);
+          }
         }
         let encoder = new TextEncoder();
         let programData = encoder.encode(programText);
@@ -567,654 +583,653 @@ document.getElementById("download").addEventListener('click', async () => {
         console.log(await get_file_name(masterHandle));
         await downloadProgram(slotIndex, await get_file_name(masterHandle), "python", programData, downloadCallback, "Python");
         BleProgressUI.hide();
-    } else {
+      } else {
         alert("No program selected. Please select a file first.");
         return;
-    }
-});
-
-
-// =======================================================
-// Main program
-// =======================================================
-// ===== BLE Variables =====
-let attrs = {};
-let byteBuffer = new ArrayBuffer(0);
-
-// ===== DOM Elements =====
-const statusEl = document.getElementById("status");
-const connectBtn = document.getElementById("connectBtn");
-const renameBtn = document.getElementById("rename");
-const slotPicker = document.getElementById("slotPicker");
-const startBtn = document.getElementById("startBtn");
-const stopBtn = document.getElementById("stopBtn");
-const clearBtn = document.getElementById('clearBtn')
-const stdout = document.getElementById('stdout');
-const logEl = document.getElementById('log');
-const dataEl = document.getElementById('structured');
-const overlay = document.getElementById('overlay');
-const container = document.getElementById('chartContainer');
-const canvasEl = document.getElementById('myChart');
-const snapBtn = document.getElementById('snapshot');
-
-snapBtn.style.display = "none";
-//snapBtn.style.display = "flex";
-
-function enable_buttons() {
-  startBtn.disabled = false;
-  stopBtn.disabled  = false;
-  renameBtn.disabled = false;
-}
-
-function disable_buttons() {
-  startBtn.disabled = true;
-  stopBtn.disabled  = true;
-  renameBtn.disabled = true;
-}
-
-function log(msg) {
-  const line = document.createElement('div');
-  line.textContent = msg;
-  logEl.appendChild(line);
-  logEl.scrollTop = logEl.scrollHeight;
-}
-
-function clearLog() {
-  logEl.innerHTML = '';
-  logEl.scrollTop = 0;
-}
-
-function clearStdout() {
-  stdout.innerHTML = '';
-  stdout.scrollTop = 0;
-}
-
-function clearBoth() {
-  clearLog();
-  clearStdout();
-}
-
-// =======================================================
-// Modal Dialog for Bluetooth pairing code entry
-// =======================================================
-const backdrop = document.getElementById("backdrop");
-const modalText = document.getElementById("modal-text");
-const modalInput = document.getElementById("modalInput");
-const modalSubmitBtn = document.getElementById("modalSubmitBtn");
-const modalCancelBtn = document.getElementById("modalCancelBtn");
-
-function modalPrompt(prompt, regex, input_max_len=0, default_input="") {
-  return new Promise((resolve, reject) => {
-    modalText.textContent = prompt;
-    backdrop.style.display = "flex";
-    document.body.style.overflow = "hidden";
-    modalInput.value = default_input;
-    if (input_max_len === null) {
-      console.warn(`Look over here!`);
-      modalInput.disabled = true;
-      modalInput.style.display = 'none';
-      modalSubmitBtn.classList.add("enabled");
-      modalSubmitBtn.disabled = false;
-    }
-    else {
-      modalInput.disabled = false;
-      modalInput.style.display = 'block';
-      modalSubmitBtn.disabled = true;
-      modalSubmitBtn.classList.remove("enabled");
-    }
-    if (input_max_len <= 0) {
-      modalInput.removeAttribute("maxLength");
-    }
-    else {
-      modalInput.maxLength = input_max_len;
-    }
-    modalInput.classList.remove("invalid");
-    
-    
-    requestAnimationFrame(() => modalInput.focus()); // Focus after render
-
-    function cleanup() {
-      backdrop.style.display = "none";
-      document.body.style.overflow = "";
-      modalInput.removeEventListener("input", onInputChange);
-      modalInput.removeEventListener("keydown", onInputKeyDown);
-      modalSubmitBtn.removeEventListener("click", onSubmit);
-      modalCancelBtn.removeEventListener("click", onCancel);
-      document.removeEventListener("keydown", onKeyDown);
-    }
-
-    function onInputChange() {
-      // Enable submit for correct regex
-      if (regex.test(modalInput.value)) {
-        modalSubmitBtn.disabled = false;
-        modalSubmitBtn.classList.add("enabled");
-        modalInput.classList.remove("invalid");
-      } else {
-        modalSubmitBtn.disabled = true;
-        modalSubmitBtn.classList.remove("enabled");
-        if (modalInput.value.length !== 0) {
-          modalInput.classList.add("invalid");
-        } else {
-          modalInput.classList.remove("invalid");
-        }
       }
+    });
+
+
+    // =======================================================
+    // Main program
+    // =======================================================
+    // ===== BLE Variables =====
+    let attrs = {};
+    let byteBuffer = new ArrayBuffer(0);
+
+    // ===== DOM Elements =====
+    const statusEl = document.getElementById("status");
+    const connectBtn = document.getElementById("connectBtn");
+    const renameBtn = document.getElementById("rename");
+    const slotPicker = document.getElementById("slotPicker");
+    const startBtn = document.getElementById("startBtn");
+    const stopBtn = document.getElementById("stopBtn");
+    const clearBtn = document.getElementById('clearBtn')
+    const stdout = document.getElementById('stdout');
+    const logEl = document.getElementById('log');
+    const dataEl = document.getElementById('structured');
+    const overlay = document.getElementById('overlay');
+    const container = document.getElementById('chartContainer');
+    const canvasEl = document.getElementById('myChart');
+    const snapBtn = document.getElementById('snapshot');
+
+    snapBtn.style.display = "none";
+    //snapBtn.style.display = "flex";
+
+    function enable_buttons() {
+      startBtn.disabled = false;
+      stopBtn.disabled = false;
+      renameBtn.disabled = false;
     }
 
-    function getValidInput() {
-      // must be exactly 4 decimal digits
-      const v = modalInput.value;
-      if (regex.test(v)) {
-        return v;
-      }
-      else {
-        console.warn("invalid");
-        return "";
-      }
+    function disable_buttons() {
+      startBtn.disabled = true;
+      stopBtn.disabled = true;
+      renameBtn.disabled = true;
     }
 
-    function onSubmit() {
-      if (input_max_len !== null) {
-        const v = getValidInput();
-        if (!v) {
-          modalInput.classList.add("invalid");
-          return;
-        }
-    }
-      cleanup();
-      resolve(modalInput.value);
+    function log(msg) {
+      const line = document.createElement('div');
+      line.textContent = msg;
+      logEl.appendChild(line);
+      logEl.scrollTop = logEl.scrollHeight;
     }
 
-    function onCancel() {
-      cleanup();
-      resolve(null);
+    function clearLog() {
+      logEl.innerHTML = '';
+      logEl.scrollTop = 0;
     }
 
-    function onInputKeyDown(e) {
-      if (e.key === "Enter") {
-        if (getValidInput()) {
-          onSubmit();
-        } else {
-          // Disable invalid Enter submissions
-          e.preventDefault();
-        }
-      }
+    function clearStdout() {
+      stdout.innerHTML = '';
+      stdout.scrollTop = 0;
     }
 
-    function onKeyDown(e) {
-      if (e.key === "Escape") {
-        onCancel();
-      }
+    function clearBoth() {
+      clearLog();
+      clearStdout();
     }
 
-    modalInput.addEventListener("input", onInputChange);
-    modalInput.addEventListener("keydown", onInputKeyDown);
-    modalSubmitBtn.addEventListener("click", onSubmit);
-    modalCancelBtn.addEventListener("click", onCancel);
-    document.addEventListener("keydown", onKeyDown);
-  });
-}
+    // =======================================================
+    // Modal Dialog for Bluetooth pairing code entry
+    // =======================================================
+    const backdrop = document.getElementById("backdrop");
+    const modalText = document.getElementById("modal-text");
+    const modalInput = document.getElementById("modalInput");
+    const modalSubmitBtn = document.getElementById("modalSubmitBtn");
+    const modalCancelBtn = document.getElementById("modalCancelBtn");
 
-
-async function promptForConnectionCodeModal() {
-  return modalPrompt("Enter the 4-digit Radio Connection Code displayed on the IQ Brain", /^\d{4}$/, 4);
-}
-
-async function promptForNewNameModal() {
-  return modalPrompt("Update Brain Name", /^\S*$/, 0, attrs.robotname ?? "");
-}
-
-async function renameBrain() {
-    let new_name = await promptForNewNameModal();
-    if (new_name === null) {
-        return;
-    }
-    await setRobotName(new_name);
-    log(`Brain renamed ${new_name}`);
-}
-
-function combineArrayBuffers(buffer1, buffer2) {
-  const totalLength = buffer1.byteLength + buffer2.byteLength;
-
-  const combinedBuffer = new ArrayBuffer(totalLength);
-
-  const view1 = new Uint8Array(buffer1);
-  const view2 = new Uint8Array(buffer2);
-  const combinedView = new Uint8Array(combinedBuffer);
-
-  combinedView.set(view1, 0); // Copy buffer1 data starting at index 0
-  combinedView.set(view2, buffer1.byteLength); // Copy buffer2 data after buffer1's data
-
-  return combinedBuffer;
-}
-
-const fmt_for_data = {
-  0:  ["Axis A",  "b"],
-  1:  ["Axis B",  "b"],
-  2:  ["Axis C",  "b"],
-  3:  ["Axis D",  "b"],
-  4:  ["Heading", "f"],
-  5:  ["Rotation", "f"],
-  6:  ["Roll", "f"],
-  7:  ["Pitch", "f"],
-  8:  ["Yaw", "f"],
-  9:  ["ax", "f"],
-  10: ["ay", "f"],
-  11: ["az", "f"],
-  12: ["gx", "f"],
-  13: ["gy", "f"],
-  14: ["gz", "f"],
-  15: ["Distance", "B"],
-  16: ["Hue", "H"],
-  17: ["Brightness", "B"],
-};
-const code_lens= {
-  "b": 1,
-  "B": 1,
-  "h": 2,
-  "H": 2,
-  "i": 4,
-  "I": 4,
-  "l": 4,
-  "L": 4,
-  "q": 8,
-  "Q": 8,
-  "e": 2,
-  "f": 4,
-  "d": 8,
-}
-
-function get_data(data, index, fmt_code) {
-  const fmt_funcs= {
-    "b": (data, index) => data.getInt8(index),
-    "B": (data, index) => data.getUint8(index),
-    "h": (data, index) => data.getInt16(index),
-    "H": (data, index) => data.getUint16(index),
-    "i": (data, index) => data.getInt32(index),
-    "I": (data, index) => data.getUint32(index),
-    "l": (data, index) => data.getInt32(index),
-    "L": (data, index) => data.getUint32(index),
-    "q": (data, index) => data.getInt64(index),
-    "Q": (data, index) => data.getUint64(index),
-    "e": (data, index) => data.getFloat16(index),
-    "f": (data, index) => data.getFloat32(index),
-    "d": (data, index) => data.getFloat64(index),
-  }
-  const func = fmt_funcs[fmt_code];
-  if (func === null) {
-    console.error(`Unsupported format code: ${fmt_code}`);
-  }
-  return func(data, index);
-}
-
-
-const data_dict = {
-  "Axis A":    0,
-  "Axis B":    0,
-  "Axis C":    0,
-  "Axis D":    0,
-  "Heading":   0,
-  "Rotation":  0,
-  "Roll":      0,
-  "Pitch":     0,
-  "Yaw":       0,
-  "ax":        0,
-  "ay":        0,
-  "az":        0,
-  "gx":        0,
-  "gy":        0,
-  "gz":        0,
-  "Distance":  0,
-};
-
-let graph_data = Array.from({ length: 40 });
-for (let i = 0; i < graph_data.length; i++) {
-  graph_data[i] = { ...data_dict };
-}
-
-
-function update_graph() {
-  graph_data.push(graph_data.shift());
-  graph_data[graph_data.length - 1] = { ...data_dict};
-}
-
-function unpack_vals(data, index, length) {
-  const view = new DataView(data.buffer, index, length);
-
-  for (let i = index; i < index+length && i < data.byteLength; i++) {
-    const code = data.getUint16(i);
-    const fmt_list = fmt_for_data[code];
-    if (fmt_list === null) {
-      console.warn(`Code ${code} doesn't exist`);
-      return;
-    }
-    const [name, fmt] = fmt_for_data[code];
-    const val_len = code_lens[fmt];
-    data_dict[name] = get_data(data, i+2, fmt);
-    i += (val_len + 1);
-  }
-  // display data
-  let data_str = "";
-  for (const [name, val] of Object.entries(data_dict)) {
-    data_str += `${name}: ${String(val.toFixed(1)).padStart(10)}\n`;
-  }
-  dataEl.textContent = data_str;
-}
-
-function stdout_handler(event) {
-  const combinedBuffer = combineArrayBuffers(byteBuffer, event.target.value.buffer);
-  // clear byteBuffer, if we still need it, we will write into it again
-  byteBuffer = new ArrayBuffer(0);
-  const value = new DataView(combinedBuffer);
-  //console.log(value);
-  for (let i = 0; i < value.byteLength; i++) {
-    const byte = value.getUint8(i);
-    if (byte == 0)
-    {
-      // null byte starts new data packet
-      // next two bytes are length
-      if (i+2 < value.byteLength) {
-        let pack_len = value.getUint16(i+1);
-        if (i + pack_len < value.byteLength) {
-          // this is a full packet
-          unpack_vals(value, i+3, pack_len-2);
-          i += pack_len;
+    function modalPrompt(prompt, regex, input_max_len = 0, default_input = "") {
+      return new Promise((resolve, reject) => {
+        modalText.textContent = prompt;
+        backdrop.style.display = "flex";
+        document.body.style.overflow = "hidden";
+        modalInput.value = default_input;
+        if (input_max_len === null) {
+          console.warn(`Look over here!`);
+          modalInput.disabled = true;
+          modalInput.style.display = 'none';
+          modalSubmitBtn.classList.add("enabled");
+          modalSubmitBtn.disabled = false;
         }
         else {
-          // incomplete packet
-          // store in byteBuffer until next packet
-          byteBuffer = value.buffer.slice(i);
+          modalInput.disabled = false;
+          modalInput.style.display = 'block';
+          modalSubmitBtn.disabled = true;
+          modalSubmitBtn.classList.remove("enabled");
+        }
+        if (input_max_len <= 0) {
+          modalInput.removeAttribute("maxLength");
+        }
+        else {
+          modalInput.maxLength = input_max_len;
+        }
+        modalInput.classList.remove("invalid");
+
+
+        requestAnimationFrame(() => modalInput.focus()); // Focus after render
+
+        function cleanup() {
+          backdrop.style.display = "none";
+          document.body.style.overflow = "";
+          modalInput.removeEventListener("input", onInputChange);
+          modalInput.removeEventListener("keydown", onInputKeyDown);
+          modalSubmitBtn.removeEventListener("click", onSubmit);
+          modalCancelBtn.removeEventListener("click", onCancel);
+          document.removeEventListener("keydown", onKeyDown);
+        }
+
+        function onInputChange() {
+          // Enable submit for correct regex
+          if (regex.test(modalInput.value)) {
+            modalSubmitBtn.disabled = false;
+            modalSubmitBtn.classList.add("enabled");
+            modalInput.classList.remove("invalid");
+          } else {
+            modalSubmitBtn.disabled = true;
+            modalSubmitBtn.classList.remove("enabled");
+            if (modalInput.value.length !== 0) {
+              modalInput.classList.add("invalid");
+            } else {
+              modalInput.classList.remove("invalid");
+            }
+          }
+        }
+
+        function getValidInput() {
+          // must be exactly 4 decimal digits
+          const v = modalInput.value;
+          if (regex.test(v)) {
+            return v;
+          }
+          else {
+            console.warn("invalid");
+            return "";
+          }
+        }
+
+        function onSubmit() {
+          if (input_max_len !== null) {
+            const v = getValidInput();
+            if (!v) {
+              modalInput.classList.add("invalid");
+              return;
+            }
+          }
+          cleanup();
+          resolve(modalInput.value);
+        }
+
+        function onCancel() {
+          cleanup();
+          resolve(null);
+        }
+
+        function onInputKeyDown(e) {
+          if (e.key === "Enter") {
+            if (getValidInput()) {
+              onSubmit();
+            } else {
+              // Disable invalid Enter submissions
+              e.preventDefault();
+            }
+          }
+        }
+
+        function onKeyDown(e) {
+          if (e.key === "Escape") {
+            onCancel();
+          }
+        }
+
+        modalInput.addEventListener("input", onInputChange);
+        modalInput.addEventListener("keydown", onInputKeyDown);
+        modalSubmitBtn.addEventListener("click", onSubmit);
+        modalCancelBtn.addEventListener("click", onCancel);
+        document.addEventListener("keydown", onKeyDown);
+      });
+    }
+
+
+    async function promptForConnectionCodeModal() {
+      return modalPrompt("Enter the 4-digit Radio Connection Code displayed on the IQ Brain", /^\d{4}$/, 4);
+    }
+
+    async function promptForNewNameModal() {
+      return modalPrompt("Update Brain Name", /^\S*$/, 0, attrs.robotname ?? "");
+    }
+
+    async function renameBrain() {
+      let new_name = await promptForNewNameModal();
+      if (new_name === null) {
+        return;
+      }
+      await setRobotName(new_name);
+      log(`Brain renamed ${new_name}`);
+    }
+
+    function combineArrayBuffers(buffer1, buffer2) {
+      const totalLength = buffer1.byteLength + buffer2.byteLength;
+
+      const combinedBuffer = new ArrayBuffer(totalLength);
+
+      const view1 = new Uint8Array(buffer1);
+      const view2 = new Uint8Array(buffer2);
+      const combinedView = new Uint8Array(combinedBuffer);
+
+      combinedView.set(view1, 0); // Copy buffer1 data starting at index 0
+      combinedView.set(view2, buffer1.byteLength); // Copy buffer2 data after buffer1's data
+
+      return combinedBuffer;
+    }
+
+    const fmt_for_data = {
+      0: ["Axis A", "b"],
+      1: ["Axis B", "b"],
+      2: ["Axis C", "b"],
+      3: ["Axis D", "b"],
+      4: ["Heading", "f"],
+      5: ["Rotation", "f"],
+      6: ["Roll", "f"],
+      7: ["Pitch", "f"],
+      8: ["Yaw", "f"],
+      9: ["ax", "f"],
+      10: ["ay", "f"],
+      11: ["az", "f"],
+      12: ["gx", "f"],
+      13: ["gy", "f"],
+      14: ["gz", "f"],
+      15: ["Distance", "B"],
+      16: ["Hue", "H"],
+      17: ["Brightness", "B"],
+    };
+    const code_lens = {
+      "b": 1,
+      "B": 1,
+      "h": 2,
+      "H": 2,
+      "i": 4,
+      "I": 4,
+      "l": 4,
+      "L": 4,
+      "q": 8,
+      "Q": 8,
+      "e": 2,
+      "f": 4,
+      "d": 8,
+    }
+
+    function get_data(data, index, fmt_code) {
+      const fmt_funcs = {
+        "b": (data, index) => data.getInt8(index),
+        "B": (data, index) => data.getUint8(index),
+        "h": (data, index) => data.getInt16(index),
+        "H": (data, index) => data.getUint16(index),
+        "i": (data, index) => data.getInt32(index),
+        "I": (data, index) => data.getUint32(index),
+        "l": (data, index) => data.getInt32(index),
+        "L": (data, index) => data.getUint32(index),
+        "q": (data, index) => data.getInt64(index),
+        "Q": (data, index) => data.getUint64(index),
+        "e": (data, index) => data.getFloat16(index),
+        "f": (data, index) => data.getFloat32(index),
+        "d": (data, index) => data.getFloat64(index),
+      }
+      const func = fmt_funcs[fmt_code];
+      if (func === null) {
+        console.error(`Unsupported format code: ${fmt_code}`);
+      }
+      return func(data, index);
+    }
+
+
+    const data_dict = {
+      "Axis A": 0,
+      "Axis B": 0,
+      "Axis C": 0,
+      "Axis D": 0,
+      "Heading": 0,
+      "Rotation": 0,
+      "Roll": 0,
+      "Pitch": 0,
+      "Yaw": 0,
+      "ax": 0,
+      "ay": 0,
+      "az": 0,
+      "gx": 0,
+      "gy": 0,
+      "gz": 0,
+      "Distance": 0,
+    };
+
+    let graph_data = Array.from({ length: 40 });
+    for (let i = 0; i < graph_data.length; i++) {
+      graph_data[i] = { ...data_dict };
+    }
+
+
+    function update_graph() {
+      graph_data.push(graph_data.shift());
+      graph_data[graph_data.length - 1] = { ...data_dict };
+    }
+
+    function unpack_vals(data, index, length) {
+      const view = new DataView(data.buffer, index, length);
+
+      for (let i = index; i < index + length && i < data.byteLength; i++) {
+        const code = data.getUint16(i);
+        const fmt_list = fmt_for_data[code];
+        if (fmt_list === null) {
+          console.warn(`Code ${code} doesn't exist`);
           return;
         }
+        const [name, fmt] = fmt_for_data[code];
+        const val_len = code_lens[fmt];
+        data_dict[name] = get_data(data, i + 2, fmt);
+        i += (val_len + 1);
       }
-      else {
-        // incomplete packet, can't even read pack_len
-        // store in byteBuffer until next packet
-        byteBuffer = value.buffer.slice(i);
-        return;
+      // display data
+      let data_str = "";
+      for (const [name, val] of Object.entries(data_dict)) {
+        data_str += `${name}: ${String(val.toFixed(1)).padStart(10)}\n`;
       }
-
+      dataEl.textContent = data_str;
     }
-    else {
-      // non null byte, print in console
-      // Check if the user is already at or near the bottom (e.g., within 1 pixel inaccuracy)
-      const isScrolledToBottom = stdout.scrollHeight - stdout.clientHeight <= stdout.scrollTop + 1;
 
-      const charStr = String.fromCharCode(byte);
-      stdout.textContent += charStr;
+    function stdout_handler(event) {
+      const combinedBuffer = combineArrayBuffers(byteBuffer, event.target.value.buffer);
+      // clear byteBuffer, if we still need it, we will write into it again
+      byteBuffer = new ArrayBuffer(0);
+      const value = new DataView(combinedBuffer);
+      //console.log(value);
+      for (let i = 0; i < value.byteLength; i++) {
+        const byte = value.getUint8(i);
+        if (byte == 0) {
+          // null byte starts new data packet
+          // next two bytes are length
+          if (i + 2 < value.byteLength) {
+            let pack_len = value.getUint16(i + 1);
+            if (i + pack_len < value.byteLength) {
+              // this is a full packet
+              unpack_vals(value, i + 3, pack_len - 2);
+              i += pack_len;
+            }
+            else {
+              // incomplete packet
+              // store in byteBuffer until next packet
+              byteBuffer = value.buffer.slice(i);
+              return;
+            }
+          }
+          else {
+            // incomplete packet, can't even read pack_len
+            // store in byteBuffer until next packet
+            byteBuffer = value.buffer.slice(i);
+            return;
+          }
 
-      // Only scroll to the bottom if they were already there
-      if (isScrolledToBottom) {
-        stdout.scrollTop = stdout.scrollHeight;
-      }
-    }
-  }
-
-}
-
-// ===== Disconnect Brain =====
-function disconnect_callback() {
-    disable_buttons();
-    disconnect();
-    attrs = {};
-    connectBtn.removeEventListener('click', disconnect_callback);
-    connectBtn.addEventListener('click', connect);
-    connectBtn.textContent = "Connect";
-}
-
-async function EnterLockCode_callback(webble_gatt_uuid, UniqueDeviceID) {
-    let pair_key = `BLE_LOCK_KEY${UniqueDeviceID.toString(10)}`;
-    log(`Looking for cookie: ${pair_key}`);
-    let pair_code = localStorage.getItem(pair_key);
-
-    do {
-    if (pair_code === null) {
-        // command the brain to display the "Bluetooth ID" pairing code
-        ShowLockCodeOnBrain(true);
-        // prompt the user to enter the pair code from the brain
-        pair_code = await promptForConnectionCodeModal();
-        if (pair_code === null) {
-        // canceled; clear the brain display and disconnect
-        ShowLockCodeOnBrain(false);
-        disconnect_callback();
-        return;
         }
-    }
-    let unlocked = await SendLockCode(Number(pair_code));
-    if (!unlocked) {
-        log('Pair code failed');
-        pair_code = null;
-    }
-    } while (pair_code === null)
+        else {
+          // non null byte, print in console
+          // Check if the user is already at or near the bottom (e.g., within 1 pixel inaccuracy)
+          const isScrolledToBottom = stdout.scrollHeight - stdout.clientHeight <= stdout.scrollTop + 1;
 
-    // pairing successful; store/update the code
-    log(`Storing code: ${pair_code} to key: ${pair_key}`);
-    localStorage.setItem(pair_key, pair_code);
-}
+          const charStr = String.fromCharCode(byte);
+          stdout.textContent += charStr;
 
-async function connect() {
-    connectBtn.textContent = "Connecting...";
-    connectBtn.disabled = true;
-    try {
+          // Only scroll to the bottom if they were already there
+          if (isScrolledToBottom) {
+            stdout.scrollTop = stdout.scrollHeight;
+          }
+        }
+      }
+
+    }
+
+    // ===== Disconnect Brain =====
+    function disconnect_callback() {
+      disable_buttons();
+      disconnect();
+      attrs = {};
+      connectBtn.removeEventListener('click', disconnect_callback);
+      connectBtn.addEventListener('click', connect);
+      connectBtn.textContent = "Connect";
+    }
+
+    async function EnterLockCode_callback(webble_gatt_uuid, UniqueDeviceID) {
+      let pair_key = `BLE_LOCK_KEY${UniqueDeviceID.toString(10)}`;
+      log(`Looking for cookie: ${pair_key}`);
+      let pair_code = localStorage.getItem(pair_key);
+
+      do {
+        if (pair_code === null) {
+          // command the brain to display the "Bluetooth ID" pairing code
+          ShowLockCodeOnBrain(true);
+          // prompt the user to enter the pair code from the brain
+          pair_code = await promptForConnectionCodeModal();
+          if (pair_code === null) {
+            // canceled; clear the brain display and disconnect
+            ShowLockCodeOnBrain(false);
+            disconnect_callback();
+            return;
+          }
+        }
+        let unlocked = await SendLockCode(Number(pair_code));
+        if (!unlocked) {
+          log('Pair code failed');
+          pair_code = null;
+        }
+      } while (pair_code === null)
+
+      // pairing successful; store/update the code
+      log(`Storing code: ${pair_code} to key: ${pair_key}`);
+      localStorage.setItem(pair_key, pair_code);
+    }
+
+    async function connect() {
+      connectBtn.textContent = "Connecting...";
+      connectBtn.disabled = true;
+      try {
         await scanAndConnect();
-    } catch (e) {
+      } catch (e) {
         connectBtn.textContent = "Connect";
         connectBtn.disabled = false;
         return;
+      }
+
+      enable_buttons()
+      connectBtn.textContent = "Disconnect";
+      connectBtn.disabled = false;
+      connectBtn.removeEventListener('click', connect);
+      connectBtn.addEventListener('click', disconnect_callback);
     }
 
-    enable_buttons()
-    connectBtn.textContent = "Disconnect";
-    connectBtn.disabled = false;
-    connectBtn.removeEventListener('click', connect);
-    connectBtn.addEventListener('click', disconnect_callback);
-}
-
-async function run_program() {
-    const slotNum = parseInt(slotPicker.value, 10);
-    const slotIndex = slotNum - 1;
-    if (await Play(slotIndex)) {
+    async function run_program() {
+      const slotNum = parseInt(slotPicker.value, 10);
+      const slotIndex = slotNum - 1;
+      if (await Play(slotIndex)) {
         log(`Run command sent to Slot ${slotNum}`);
-    } else {
+      } else {
         log(`Cannot start empty Slot ${slotNum}`);
-    }
-}
-
-disable_buttons();
-init("IQ2");
-connectBtn.addEventListener('click', connect);
-startBtn.addEventListener('click', run_program);
-stopBtn.addEventListener('click', Stop);
-clearBtn.addEventListener('click', clearBoth);
-renameBtn.addEventListener('click', renameBrain);
-EventSystem.on("VEXBLEBrowser.EnterLockCode", EnterLockCode_callback);
-bleDeviceManager.notificationHandlerAIMTXUser = stdout_handler;
-
-let myChart = null;
-
-const labels = Array.from({ length: 40 }, (_, i) => i * 50);
-
-let config = null;
-
-const brightColors = [
-  'rgba(255, 99, 132, 1)',    // red
-  'rgba(54, 162, 235, 1)',    // blue
-  'rgba(255, 206, 86, 1)',    // yellow
-  'rgba(75, 192, 192, 1)',    // teal
-  'rgba(153, 102, 255, 1)',   // purple
-  'rgba(255, 159, 64, 1)',    // orange
-  'rgba(0, 128, 0, 1)',       // green
-  'rgba(255, 0, 255, 1)',     // magenta
-  'rgba(0, 255, 255, 1)',     // cyan
-  'rgba(128, 0, 0, 1)'        // dark red
-];
-
-
-function createConfig(graph_dict) {
-  // graph_dict should look like:
-  //   [{
-  //     name: "Data1",
-  //     axis: "y",
-  //   },
-  //   {
-  //     name: "Data2",
-  //     axis: "y2",
-  //   },
-  // ]
-  config = {
-    type: 'line',
-    data: {
-      labels: labels,
-      datasets: [
-      //   label: 'Heading',
-      //   data: new Array(40).fill(0),
-      //   yAxisID: 'y',
-      //   borderColor: 'rgba(75,192,192,1)',
-      //   backgroundColor: 'rgba(75,192,192,0.2)',
-      //   fill: false,
-      //   tension: 0
-      // },
-      // {
-      //   label: 'gx',
-      //   data: new Array(40).fill(0),
-      //   yAxisID: 'y2',
-      //   borderColor: 'rgba(255,99,132,1)',
-      //   tension: 0
-    ]
-    },
-    options: {
-      animation: false,
-      responsive: true,
-      maintainAspectRatio: false,
-      scales: {
-        y: {
-          min: 0,    // force bottom of y-axis
-          max: 360,    // force top of y-axis
-          position: 'left',
-        },
-        y2: {
-          min: -2,    // force bottom of y-axis
-          max: 2,    // force top of y-axis
-          position: 'right',
-        }
       }
     }
-  };
-  const cookie = JSON.parse(localStorage.getItem('GraphShownLines')) ?? {};
 
-  graph_dict.forEach((val, index) => {
-    const color = brightColors[index % brightColors.length];
-    const dataset = {
-      label: val.name,
-      data: new Array(40).fill(0),
-      yAxisID: val.axis,
-      borderColor: color,
-      backgroundColor: color.replace('1)', '0.2)'),
-      hidden: cookie[val.name] || false,
-      fill: false,
-      tension: 0
-    };
-    config.data.datasets.push(dataset);
-  });
+    disable_buttons();
+    init("IQ2");
+    connectBtn.addEventListener('click', connect);
+    startBtn.addEventListener('click', run_program);
+    stopBtn.addEventListener('click', Stop);
+    clearBtn.addEventListener('click', clearBoth);
+    renameBtn.addEventListener('click', renameBrain);
+    EventSystem.on("VEXBLEBrowser.EnterLockCode", EnterLockCode_callback);
+    bleDeviceManager.notificationHandlerAIMTXUser = stdout_handler;
 
-}
-createConfig([
-  {
-    name: "Heading",
-    axis: "y",
-  },
-  {
-    name: "gx",
-    axis: "y2",
-  },
-    {
-    name: "gy",
-    axis: "y2",
-    hidden: true,
-  },
-  {
-    name: "gz",
-    axis: "y2",
-    hidden: true,
-  },
+    let myChart = null;
 
-]);
+    const labels = Array.from({ length: 40 }, (_, i) => i * 50);
+
+    let config = null;
+
+    const brightColors = [
+      'rgba(255, 99, 132, 1)',    // red
+      'rgba(54, 162, 235, 1)',    // blue
+      'rgba(255, 206, 86, 1)',    // yellow
+      'rgba(75, 192, 192, 1)',    // teal
+      'rgba(153, 102, 255, 1)',   // purple
+      'rgba(255, 159, 64, 1)',    // orange
+      'rgba(0, 128, 0, 1)',       // green
+      'rgba(255, 0, 255, 1)',     // magenta
+      'rgba(0, 255, 255, 1)',     // cyan
+      'rgba(128, 0, 0, 1)'        // dark red
+    ];
 
 
+    function createConfig(graph_dict) {
+      // graph_dict should look like:
+      //   [{
+      //     name: "Data1",
+      //     axis: "y",
+      //   },
+      //   {
+      //     name: "Data2",
+      //     axis: "y2",
+      //   },
+      // ]
+      config = {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [
+            //   label: 'Heading',
+            //   data: new Array(40).fill(0),
+            //   yAxisID: 'y',
+            //   borderColor: 'rgba(75,192,192,1)',
+            //   backgroundColor: 'rgba(75,192,192,0.2)',
+            //   fill: false,
+            //   tension: 0
+            // },
+            // {
+            //   label: 'gx',
+            //   data: new Array(40).fill(0),
+            //   yAxisID: 'y2',
+            //   borderColor: 'rgba(255,99,132,1)',
+            //   tension: 0
+          ]
+        },
+        options: {
+          animation: false,
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: {
+              min: 0,    // force bottom of y-axis
+              max: 360,    // force top of y-axis
+              position: 'left',
+            },
+            y2: {
+              min: -2,    // force bottom of y-axis
+              max: 2,    // force top of y-axis
+              position: 'right',
+            }
+          }
+        }
+      };
+      const cookie = JSON.parse(localStorage.getItem('GraphShownLines')) ?? {};
 
-// Show/hide chart + overlay
-document.getElementById('canvasButton').addEventListener('click', () => {
-    const isHidden = container.style.display === 'none' || container.style.display === '';
-    container.style.display = isHidden ? 'block' : 'none';
-    overlay.style.display = isHidden ? 'block' : 'none';
-    snapBtn.style.display = isHidden ? 'block' : 'none';
+      graph_dict.forEach((val, index) => {
+        const color = brightColors[index % brightColors.length];
+        const dataset = {
+          label: val.name,
+          data: new Array(40).fill(0),
+          yAxisID: val.axis,
+          borderColor: color,
+          backgroundColor: color.replace('1)', '0.2)'),
+          hidden: cookie[val.name] || false,
+          fill: false,
+          tension: 0
+        };
+        config.data.datasets.push(dataset);
+      });
 
-    if (isHidden) {
+    }
+    createConfig([
+      {
+        name: "Heading",
+        axis: "y",
+      },
+      {
+        name: "gx",
+        axis: "y2",
+      },
+      {
+        name: "gy",
+        axis: "y2",
+        hidden: true,
+      },
+      {
+        name: "gz",
+        axis: "y2",
+        hidden: true,
+      },
+
+    ]);
+
+
+
+    // Show/hide chart + overlay
+    document.getElementById('canvasButton').addEventListener('click', () => {
+      const isHidden = container.style.display === 'none' || container.style.display === '';
+      container.style.display = isHidden ? 'block' : 'none';
+      overlay.style.display = isHidden ? 'block' : 'none';
+      snapBtn.style.display = isHidden ? 'block' : 'none';
+
+      if (isHidden) {
         // Initialize chart after container is visible
         if (!myChart) {
-            const ctx = canvasEl.getContext('2d');
-            myChart = new Chart(ctx, config);
+          const ctx = canvasEl.getContext('2d');
+          myChart = new Chart(ctx, config);
         } else {
-            myChart.resize(); // resize if chart already exists
+          myChart.resize(); // resize if chart already exists
         }
-    }
-});
+      }
+    });
 
-// Automatically resize chart when window changes size
-window.addEventListener('resize', () => {
-    if (myChart && container.style.display === 'block') {
+    // Automatically resize chart when window changes size
+    window.addEventListener('resize', () => {
+      if (myChart && container.style.display === 'block') {
         myChart.resize();
-    }
-});
-
-// Clicking overlay hides chart
-overlay.addEventListener('click', () => {
-    container.style.display = 'none';
-    overlay.style.display = 'none';
-    snapBtn.style.display = 'none';
-});
-
-let frozen = false;
-snapBtn.addEventListener('click', () => {
-  frozen = !frozen;
-});
-
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-function main_loop() {
-  if (myChart !== null) {
-    update_graph();
-    if (!frozen) {
-      var cookie = JSON.parse(localStorage.getItem('GraphShownLines'));
-      if (cookie === null) {
-        console.log("Null cookie")
-        cookie = {};
       }
-      var cookie_changed = false;
-      for (var i = 0; i < myChart.data.datasets.length; i++) {
-          const data_name = myChart.data.datasets[i].label;
-          const meta = myChart.getDatasetMeta(i);
-          const hidden = meta.hidden;
-          if (hidden !== cookie[data_name] && hidden !== null) {
-            cookie[data_name] = hidden;
-            cookie_changed = true;
+    });
+
+    // Clicking overlay hides chart
+    overlay.addEventListener('click', () => {
+      container.style.display = 'none';
+      overlay.style.display = 'none';
+      snapBtn.style.display = 'none';
+    });
+
+    let frozen = false;
+    snapBtn.addEventListener('click', () => {
+      frozen = !frozen;
+    });
+
+    function sleep(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    function main_loop() {
+      if (myChart !== null) {
+        update_graph();
+        if (!frozen) {
+          var cookie = JSON.parse(localStorage.getItem('GraphShownLines'));
+          if (cookie === null) {
+            console.log("Null cookie")
+            cookie = {};
           }
-        myChart.data.datasets[i].data = graph_data.map(d => d[data_name]);
-      }
+          var cookie_changed = false;
+          for (var i = 0; i < myChart.data.datasets.length; i++) {
+            const data_name = myChart.data.datasets[i].label;
+            const meta = myChart.getDatasetMeta(i);
+            const hidden = meta.hidden;
+            if (hidden !== cookie[data_name] && hidden !== null) {
+              cookie[data_name] = hidden;
+              cookie_changed = true;
+            }
+            myChart.data.datasets[i].data = graph_data.map(d => d[data_name]);
+          }
 
-      myChart.update('none');
-      if (cookie_changed || cookie == {}) {
-        localStorage.setItem('GraphShownLines', JSON.stringify(cookie));
+          myChart.update('none');
+          if (cookie_changed || cookie == {}) {
+            localStorage.setItem('GraphShownLines', JSON.stringify(cookie));
+          }
+        }
+
       }
+      setTimeout(main_loop, 50);
     }
 
-  }
-  setTimeout(main_loop, 50);
-}
-
-window.onload = main_loop;
-</script>
+    window.onload = main_loop;
+  </script>
 </body>
 
 </html>
