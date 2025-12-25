@@ -437,6 +437,23 @@
         box-sizing: border-box;
     }
 
+    @keyframes bounce {
+      0%, 20%, 50%, 80%, 100% { transform: translateY(0); } /* resting */
+      40% { transform: translateY(-15px); }
+      60% { transform: translateY(-8px); }
+    }
+
+    /* When button B is hovered AND disabled, make button A bounce */
+    .bounce {
+      animation: bounce 0.6s infinite;
+    }
+
+
+    .action-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
     .action-btn.run {
         --icon-color: #4CAF50;
     }
@@ -641,36 +658,9 @@
     </div>
 
     <div class="row">
-      <select id="slotPicker">
-        <option value="1">Slot 1</option>
-        <option value="2">Slot 2</option>
-        <option value="3">Slot 3</option>
-        <option value="4">Slot 4</option>
-        <option value="5">Slot 5</option>
-        <option value="6">Slot 6</option>
-        <option value="7">Slot 7</option>
-        <option value="8">Slot 8</option>
-      </select>
-      <button id="startBtn">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 19" width="24" height="24">
-          <path class="icon" d="M1 1 L15 9.5 L1 18 Z"></path>
-        </svg>
-      </button>
-      <button id="stopBtn">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 15 15" width="24" height="24">
-          <rect class="icon" width="15" height="15" rx="2"></rect>
-        </svg>
-      </button>
       <button id="clearBtn">Clear</button>
       <button id="selectProgram">Select Program</button>
       <button id="selectProjectDir">Select Project Dir</button>
-      <button id="importCodeFolder">Import Code Folder</button>
-      <input type="file" id="fileInput" style="display:none" accept=".py,.iqpython" />
-      <button id="download">
-        <img src="download.svg" alt="Download" width="24" height="24">
-      </button>
-
-
     </div>
   </div>
   <table id="pickerTable">
@@ -729,11 +719,26 @@
   </div>
 
   <script type="module">
+    // await SimulateControllerThroughCDC({'leftAxisX': 0.5, 'leftAxisY': 0.5, 'rightAxisX': 0.5, 'rightAxisY': 0.5, 'SEL':0, 'R3':1, 'L3':1, 'RU':1, 'RD':1, 'LU':1, 'LD':1, 'EU':1, 'FU':1, 'ED':1, 'FD':1});
+
     /**
     * A global object that maps project paths (strings) to file (.iqpython) or directory (vscode project) handles.
     * @global
     * @type {Object.<string, (FileSystemFileHandle|FileSystemDirectoryHandle)>}
     */
+
+    function createBouncyCallback(btnToBounce) {
+      btnToBounce.addEventListener('mouseenter', () => {
+        if (btnToBounce.disabled) {
+          connectBtn.classList.add('bounce');
+        }
+      });
+
+      btnToBounce.addEventListener('mouseleave', () => {
+        connectBtn.classList.remove('bounce');
+      });
+    }
+
     let projects;
 
     async function getProjectInfo(fullPath, handle) {
@@ -991,6 +996,11 @@
       rowTd.classList.add("name-cell");
       rowTd.append(playBtn, stopBtn, downloadBtn, slotBtn, ddContainer, removeBtn);
       tr.append(rowTd);
+
+      [playBtn, stopBtn, downloadBtn].forEach(btn => {
+        btn.disabled = allDisabled;
+        createBouncyCallback(btn);
+      });
 
       // If an initial selection is provided, set the row state accordingly (no change event)
       if (initialSelectedName) {
@@ -1447,7 +1457,6 @@
       }
       await refreshPickers();
     }
-    document.getElementById("importCodeFolder").addEventListener('click', importCodeDir);
 
     /**
      * Rejects if `getValue()` does not change for `ms` milliseconds
@@ -1533,8 +1542,6 @@
     const connectBtn = document.getElementById("connectBtn");
     const renameBtn = document.getElementById("rename");
     const slotPicker = document.getElementById("slotPicker");
-    const startBtn = document.getElementById("startBtn");
-    const stopBtn = document.getElementById("stopBtn");
     const clearBtn = document.getElementById('clearBtn')
     const stdout = document.getElementById('stdout');
     const logEl = document.getElementById('log');
@@ -1547,16 +1554,35 @@
     snapBtn.style.display = "none";
     //snapBtn.style.display = "flex";
 
+    let allDisabled = true;
+
     function enable_buttons() {
-      startBtn.disabled = false;
-      stopBtn.disabled = false;
+      const ncConts = document.querySelectorAll('.name-cell');
+      ncConts.forEach(nc => {
+        const playBtn = nc.querySelector('.action-btn.run');
+        const stopBtn = nc.querySelector('.action-btn.stop');
+        const downloadBtn = nc.querySelector('.action-btn.download');
+        playBtn.disabled = false;
+        stopBtn.disabled = false;
+        downloadBtn.disabled = false;
+      });
+
       renameBtn.disabled = false;
+      allDisabled = false;
     }
 
     function disable_buttons() {
-      startBtn.disabled = true;
-      stopBtn.disabled = true;
+      const ncConts = document.querySelectorAll('.name-cell');
+      ncConts.forEach(nc => {
+        const playBtn = nc.querySelector('.action-btn.run');
+        const stopBtn = nc.querySelector('.action-btn.stop');
+        const downloadBtn = nc.querySelector('.action-btn.download');
+        playBtn.disabled = true;
+        stopBtn.disabled = true;
+        downloadBtn.disabled = true;
+      });
       renameBtn.disabled = true;
+      allDisabled = true;
     }
 
     function log(msg) {
@@ -1968,8 +1994,6 @@
     disable_buttons();
     init("IQ2");
     connectBtn.addEventListener('click', connect);
-    startBtn.addEventListener('click', run_program);
-    stopBtn.addEventListener('click', Stop);
     clearBtn.addEventListener('click', clearBoth);
     renameBtn.addEventListener('click', renameBrain);
     EventSystem.on("VEXBLEBrowser.EnterLockCode", EnterLockCode_callback);
