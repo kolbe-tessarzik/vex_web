@@ -211,35 +211,71 @@
       height: 100%;
     }
 
+    /* =========================
+      Wrapper (full-screen)
+      ========================= */
     .ble-progress-wrapper {
       position: fixed;
-      /* keeps it relative to the viewport */
       top: 0;
       left: 0;
       width: 100%;
       height: 100%;
-      /* important so flex centering works */
+
       display: flex;
       align-items: center;
-      /* vertical center */
       justify-content: center;
-      /* horizontal center */
+
       z-index: 9999;
-      /* above everything else */
       pointer-events: auto;
     }
 
+    /* Full-screen flash overlay */
+    .ble-progress-wrapper::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: rgba(229, 83, 61, 0);
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    @keyframes ble-screen-flash {
+      0%   { background: rgba(229, 83, 61, 0); }
+      20%  { background: rgba(229, 83, 61, 0.85); } /* much stronger */
+      100% { background: rgba(229, 83, 61, 0); }
+    }
+
+    .ble-progress-wrapper.flash-error::after {
+      animation: ble-screen-flash 320ms ease-out;
+    }
+
+    .ble-progress-wrapper.hidden {
+      display: none;
+      pointer-events: none;
+    }
+
+    /* =========================
+      Card
+      ========================= */
     .ble-progress {
+      position: relative;
+      z-index: 2;
+
       width: 520px;
       padding: 28px 32px 32px;
       border-radius: 16px;
+
       background: #ffffff;
       box-shadow:
         0 12px 32px rgba(0, 0, 0, 0.12),
         0 2px 6px rgba(0, 0, 0, 0.08);
+
       font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
     }
 
+    /* =========================
+      Header
+      ========================= */
     .ble-progress-header {
       display: flex;
       justify-content: space-between;
@@ -260,6 +296,9 @@
       font-variant-numeric: tabular-nums;
     }
 
+    /* =========================
+      Progress bar
+      ========================= */
     .ble-progress-track {
       height: 16px;
       background: #e6e8eb;
@@ -270,32 +309,324 @@
     .ble-progress-fill {
       height: 100%;
       width: 0%;
-      background: linear-gradient(90deg, #4f8cff, #6bb7ff);
       border-radius: 999px;
-      transition: width 300ms ease-out;
 
+      background: linear-gradient(90deg, #4f8cff, #6bb7ff);
+      transition: width 300ms ease-out;
     }
 
-    /* States */
+    /* =========================
+      States
+      ========================= */
     .ble-progress.complete .ble-progress-fill {
       background: linear-gradient(90deg, #2eb872, #6fe3a1);
     }
 
     .ble-progress.error .ble-progress-fill {
-      background: linear-gradient(90deg, #e5533d, #ff7b66);
+      background: linear-gradient(
+        90deg,
+        #d63b2f 0%,
+        #e5533d 45%,
+        #ff8a75 100%
+      );
     }
 
     .ble-progress.error .ble-progress-track {
-      background: #f3d6d2;
+      background: linear-gradient(180deg, #f6d2cd, #f2c1bb);
     }
 
-    .ble-progress-wrapper.hidden {
-      display: none;
-      pointer-events: none;
+    /* Freeze motion on failure */
+    .ble-progress.frozen .ble-progress-fill {
+      transition: none;
+    }
+
+    table {
+        border-collapse: collapse;
+        width: 800px;
+        font-family: sans-serif;
+    }
+
+    th,
+    td {
+        padding: 8px 10px;
+        border-bottom: 1px solid #ddd;
+        text-align: left;
+    }
+
+    th {
+        background: #f4f4f4;
+        font-weight: 600;
+    }
+
+    /* select element removed — using custom Dropdown. Keep legacy rule for other selects */
+    select {
+        width: 100%;
+    }
+
+    /* align remove button and picker inline */
+    .name-cell {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .name-cell .custom-select {
+        flex: 1 1 auto;
+        width: 100%;
+    }
+
+    .empty {
+        color: #aaa;
+    }
+
+    .remove-btn,
+    .action-btn,
+    .slot-btn {
+        border-radius: 4px;
+        margin-right: 4px;
+        cursor: pointer;
+        font-size: 14px;
+    }
+
+    /* Remove button is just the circular SVG. Make the hit area exactly the circle
+        by clipping to a circle and sizing the button to the SVG (20x20). */
+    .remove-btn {
+        background: transparent;
+        border: none;
+        padding: 0;
+        width: 40px;
+        height: 40px;
+        min-width: 40px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        /* clip the clickable area to the circular shape */
+        -webkit-clip-path: circle(50% at 50% 50%);
+        clip-path: circle(50% at 50% 50%);
+        cursor: pointer;
+        transition: transform 0.08s ease, opacity 0.08s ease;
+    }
+
+    .remove-btn:hover {
+        transform: scale(1.04);
+    }
+
+    /* keep a visible focus style for keyboard users (circular outline) */
+    .remove-btn:focus {
+        outline: 2px solid rgba(217, 83, 79, 0.5);
+        outline-offset: 3px;
+        border-radius: 50%;
+    }
+
+    /* action buttons: square, light gray background, icon and label colored via --icon-color */
+    .action-btn, .slot-btn {
+        background: #f5f5f5;
+        border: 1px solid #ddd;
+        color: #333;
+        /* fallback for icon/text color */
+        width: 40px;
+        height: 40px;
+        padding: 3px 4px;
+        display: inline-flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 2px;
+        border-radius: 6px;
+        box-sizing: border-box;
+    }
+
+    .action-btn.run {
+        --icon-color: #4CAF50;
+    }
+
+    .action-btn.stop {
+        --icon-color: #e55353;
+    }
+
+    .action-btn.download {
+        --icon-color: #2d7ef7;
+    }
+
+    .action-btn svg {
+        width: 12px;
+        height: 12px;
+        display: block;
+        color: var(--icon-color);
+    }
+
+    .action-btn.download svg {
+        width: 20px;
+        height: 20px;
+        transform: translateY(1px);
+    }
+
+    .action-btn .btn-label {
+        font-size: 9px;
+        font-weight: 700;
+        text-transform: uppercase;
+        line-height: 1;
+        color: var(--icon-color);
+        text-align: center
+    }
+
+    .action-btn .btn-label span {
+        display: block
+    }
+
+    /* svg icons inside action buttons: inherit button color and size */
+    .action-btn svg {
+        width: 16px;
+        height: 16px;
+        display: inline-block;
+        vertical-align: middle;
+    }
+
+    /* Dropdown select styling to match control heights */
+    .custom-select .select-selected {
+        height: 40px;
+        padding: 0 8px;
+        display: flex;
+        align-items: center;
+    }
+
+    .custom-select .large-text {
+        font-size: 14px;
+        font-weight: 600
+    }
+
+    .custom-select .small-text {
+        font-size: 11px;
+        color: #777
+    }
+
+    .remove-btn.hidden,
+    .action-btn.hidden,
+    .slot-btn.hidden {
+        display: none;
+    }
+
+    /* placeholder state: reserve layout space but keep the control visually absent
+        and non-interactive until its inner content slides in */
+    .control-placeholder {
+        background: transparent !important;
+        border-color: transparent !important;
+        pointer-events: none;
+    }
+
+    /* animate-in helpers for controls */
+    :root { --ctrl-size: 40px; --ctrl-gap: 8px; }
+    .action-btn, .slot-btn, .remove-btn {
+        will-change: width, margin;
+        box-sizing: border-box;
+        width: var(--ctrl-size);
+        min-width: var(--ctrl-size);
+        padding: 3px 4px;
+        margin-right: var(--ctrl-gap);
+        transition: width 260ms cubic-bezier(.2,.9,.2,1), margin 200ms ease;
+        overflow: hidden;
+    }
+
+    /* collapsed state: zero width so the control appears to slide in and push the select */
+    .collapsed-control {
+        width: 0 !important;
+        min-width: 0 !important;
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+        margin-right: 0 !important;
+    }
+
+    /* inner sliding content so buttons appear to slide in from the left
+        while their width expands and pushes the select element. No fade. */
+    .control-inner {
+        display: inline-block;
+        transform: translateX(-100%);
+        transition: transform 260ms cubic-bezier(.2,.9,.2,1);
+        width: 100%;
+        box-sizing: border-box;
+        will-change: transform;
+    }
+    .control-inner.in {
+        transform: translateX(0);
+    }
+
+    /* ensure the select visually adjusts smoothly as buttons expand */
+    .custom-select {
+        transition: transform 220ms ease, max-width 260ms cubic-bezier(.2,.9,.2,1);
+        min-width: 0;
+    }
+
+    .slot-btn {
+        /* Make the control visually just the SVG (no button chrome) */
+        background: transparent;
+        border: none;
+        /* outline: none; */
+    }
+
+    .slot-icon  {
+        width: 22px;
+        height: 22px;
+        display: block;
+        fill: #0866e2;
+        outline: none
+    }
+
+    .slot-number {
+        fill: #ffffff;
+        font-size: 14px;
+        font-weight: 700;
+        line-height: 1;
+        transform: translate(25%, 80%);
+    }
+    .slot-btn.empty .slot-number { opacity: 0.6; }
+
+    /* Slot picker floating list styles */
+    .slot-picker-list {
+        background: #fff;
+        border: 1px solid #ddd;
+        box-shadow: 0 6px 14px rgba(0,0,0,0.06);
+        border-radius: 6px;
+        overflow: hidden;
+        z-index: 2000;
+        /* ensure the floating picker uses the same sans-serif UI font as the table */
+        font-family: sans-serif;
+    }
+
+    .slot-picker-item {
+        padding: 8px 12px;
+        cursor: pointer;
+        min-height: 40px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        box-sizing: border-box;
+    }
+
+    .slot-picker-item:hover { background: #f5f5f5; }
+
+    .remove-icon-circle {
+        fill: #d9534f;
+    }
+
+    .remove-icon-line {
+        stroke: white;
+        stroke-width: 3;
+        stroke-linecap: round;
+    }
+
+    /* helper styles for animated row removal */
+    .row-collapse-inner { display: block; }
+    .removing-row td { border: none; padding: 0; }
+
+    /* make inline picker the same height as the action/remove buttons for visual alignment */
+    .name-cell select {
+        height: 40px;
     }
   </style>
   <link id="favicon" rel="icon" href="favicon.png" type="image/png">
   <script src="ble_sniffer.js" defer></script>
+  <script src="dropdown.js" defer></script>
   <script src="vex-ble-device-manager.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -342,6 +673,10 @@
 
     </div>
   </div>
+  <table id="pickerTable">
+    <thead></thead>
+    <tbody></tbody>
+  </table>
   <div id="structured"></div>
 
   <h3>Brain Console</h3>
@@ -394,6 +729,427 @@
   </div>
 
   <script type="module">
+    /**
+    * A global object that maps project paths (strings) to file (.iqpython) or directory (vscode project) handles.
+    * @global
+    * @type {Object.<string, (FileSystemFileHandle|FileSystemDirectoryHandle)>}
+    */
+    let projects;
+
+    async function getProjectInfo(fullPath, handle) {
+      const projectName = await getProjectName(handle);
+      const slot = await getProjectSlot(handle);
+      return { name: projectName, path: fullPath, slot: slot, handle: handle };
+    }
+
+    async function getAllProjectsInfo() {
+      if (!projects) return [];
+      let allProjectsInfo = [];
+      for (const [fullPath, handle] of Object.entries(projects)) {
+        allProjectsInfo.push(await getProjectInfo(fullPath, handle));
+      }
+      return allProjectsInfo;
+    }
+
+    const DATA = [
+      { name: "XDrive", slot: 1, path: "Code/VEX/XDrive" },
+      { name: "R3BeatThee", slot: 1, path: "Code/VEX/R3BeatThee" },
+      { name: "NewerBotCode", slot: 2, path: "Code/VEX/NewerBotCode" },
+      { name: "WidthSensor", slot: 6, path: "Code/VEX/WidthSensor" },
+      { name: "BLETest", slot: 1, path: "Code/vex_web/BLETest" },
+      { name: "NewTest", slot: 1, path: "Code/vex_web/NewTest.iqpython" }
+    ];
+    /*=============================================================================
+    * Table with program pickers and action buttons
+    *============================================================================*/
+    const tbody = document.querySelector("#pickerTable tbody");
+    // Set to true to start with all getAllProjectsInfo() items pre-selected for layout preview
+    const INIT_WITH_ALL = false;
+
+    function getSelectedNames() {
+      return Array.from(tbody.querySelectorAll('.custom-select'))
+        .map(c => c._dropdown && c._dropdown.selectedValue)
+        .filter(v => v);
+    }
+    // Build dropdown options for a row, keeping currentSelected available
+    async function getDropdownOptions(currentSelectedName = "") {
+      const selectedNames = getSelectedNames();
+      const all = await getAllProjectsInfo();
+      // Map project info into the shape Dropdown expects
+      return all
+        .filter(d => (d.name === currentSelectedName) || !selectedNames.includes(d.name))
+        .map(d => ({ text: d.name, path: d.path, value: d.name }));
+    }
+
+    async function refreshPickers() {
+      Array.from(tbody.querySelectorAll('.custom-select')).forEach(async div => {
+        const dropdown = div._dropdown;
+        if (!dropdown) return;
+        const current = dropdown.selectedValue;
+        const opts = await getDropdownOptions(current);
+        dropdown.update_options(opts);
+        if (current) dropdown.setValue(current);
+      });
+      // wait for trailing-row logic to finish so callers see a stable table
+      await ensureTrailingEmptyRow();
+    }
+
+    async function getAvailableOptions() {
+      const selected = getSelectedNames();
+      return (await getAllProjectsInfo()).filter(d => !selected.includes(d.name));
+    }
+
+    async function ensureTrailingEmptyRow() {
+      const available = await getAvailableOptions();
+      // Find rows that are "empty" (no selected value)
+      const emptyRows = Array.from(tbody.querySelectorAll('tr')).filter(row => {
+        const div = row.querySelector('.custom-select');
+        return !div || !div._dropdown || !div._dropdown.selectedValue;
+      });
+
+      if (available.length > 0) {
+        // If there are available options, ensure there is at least one empty picker
+        if (emptyRows.length === 0) {
+          tbody.appendChild(await createRow(true));
+        }
+      } else {
+        // No available projects: ensure EXACTLY one empty picker remains so the user
+        // always has a visible dropdown to click (to trigger empty callback/import)
+        if (emptyRows.length === 0) {
+          // No empties at all: add one
+          tbody.appendChild(await createRow(true));
+        } else if (emptyRows.length > 1) {
+          // Remove all but the last empty row (leave one available)
+          // Prefer keeping the last one so it stays at the bottom
+          const rowsToRemove = emptyRows.slice(0, emptyRows.length - 1);
+          rowsToRemove.forEach(row => animateRemoveRow(row, () => { /* no-op */ }));
+        }
+      }
+    }
+
+    // Animate a table row collapsing away so the lines above/below come together.
+    // This implementation replaces the row with a single-cell wrapper and
+    // animates an inner div's height and opacity for smoother behavior.
+    // Calls `onComplete` after the row is removed from DOM.
+    function animateRemoveRow(row, onComplete) {
+      if (!row || row._isRemoving) return;
+      row._isRemoving = true;
+      const parent = row.parentNode;
+      if (!parent) return;
+
+      const rect = row.getBoundingClientRect();
+      const initialHeight = rect.height;
+      const colCount = row.children.length || 1;
+
+      // Create wrapper row with a single td spanning all columns
+      const wrapper = document.createElement('tr');
+      wrapper.className = 'removing-row';
+      const td = document.createElement('td');
+      td.colSpan = colCount;
+      td.style.padding = '0';
+
+      const inner = document.createElement('div');
+      inner.className = 'row-collapse-inner';
+      // preserve the row's inner HTML inside the collapsible div
+      inner.innerHTML = row.innerHTML;
+      // set styles to make the collapse smooth
+      inner.style.overflow = 'hidden';
+      inner.style.boxSizing = 'border-box';
+      inner.style.height = initialHeight + 'px';
+      inner.style.transition = 'height 260ms cubic-bezier(.2,.9,.2,1), opacity 200ms ease';
+      inner.style.opacity = '1';
+
+      td.appendChild(inner);
+      wrapper.appendChild(td);
+
+      // remember where focus was and a sensible fallback target
+      const focusedWasInside = row.contains(document.activeElement);
+      let fallbackTarget = null;
+      const nextRow = row.nextElementSibling;
+      const prevRow = row.previousElementSibling;
+      const findFocusable = (r) => r && r.querySelector && r.querySelector('button:not(.hidden), [tabindex], a, input, select, .select-selected');
+      if (nextRow) fallbackTarget = findFocusable(nextRow);
+      if (!fallbackTarget && prevRow) fallbackTarget = findFocusable(prevRow);
+
+      // replace the original row with wrapper in place
+      parent.replaceChild(wrapper, row);
+
+      // force reflow
+      inner.getBoundingClientRect();
+
+      // start collapse on next frame
+      requestAnimationFrame(() => {
+        inner.style.height = '0px';
+        inner.style.opacity = '0';
+        // also remove any internal td paddings to make lines meet perfectly
+        Array.from(inner.querySelectorAll('td')).forEach(it => {
+          it.style.transition = 'padding 240ms ease';
+          it.style.paddingTop = '0';
+          it.style.paddingBottom = '0';
+        });
+      });
+
+      let cleaned = false;
+      const finish = () => {
+        if (cleaned) return; cleaned = true;
+        if (wrapper.parentNode) wrapper.remove();
+        if (typeof onComplete === 'function') onComplete();
+        // restore sensible focus if the removed row previously had focus
+        if (focusedWasInside) {
+          try {
+            if (fallbackTarget) fallbackTarget.focus();
+            else document.body.focus();
+          } catch (e) { /* ignore focus errors */ }
+        }
+      };
+
+      const onEnd = (ev) => {
+        if (ev.target !== inner) return;
+        inner.removeEventListener('transitionend', onEnd);
+        finish();
+      };
+      inner.addEventListener('transitionend', onEnd);
+
+      // fallback
+      setTimeout(finish, 500);
+    }
+
+    async function createRow(isLast = false, initialSelectedName = "") {
+      const tr = document.createElement("tr");
+
+      // Buttons
+      const removeBtn = document.createElement("button");
+      removeBtn.className = "remove-btn";
+      removeBtn.setAttribute('aria-label', 'Remove');
+      // inline SVG provided by user, scaled down to fit the control
+      removeBtn.innerHTML = `<span class="control-inner"><svg  xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
+          <circle class="remove-icon-circle" cx="12" cy="12" r="12"/>
+          <line class="remove-icon-line" x1="7" y1="7" x2="17" y2="17"/>
+          <line class="remove-icon-line" x1="17" y1="7" x2="7" y2="17"/>
+          </svg></span>`;
+      // hide remove button for empty rows initially
+      removeBtn.classList.add("hidden");
+      // create dropdown container and instance
+      const ddContainer = document.createElement('div');
+      ddContainer.classList.add('custom-select');
+      // Await the options so we pass an actual array to Dropdown (not a Promise)
+      const initialOpts = await getDropdownOptions(initialSelectedName);
+      const dropdown = new Dropdown(initialOpts, ddContainer);
+      dropdown.onSelect = (val) => {
+        alert(`Selected: ${val}`);
+      };
+      dropdown.setEmptyCallback(importCodeDir);
+      // keep reference for refresh logic
+      ddContainer._dropdown = dropdown;
+
+      const playBtn = document.createElement("button");
+      playBtn.className = "action-btn run hidden";
+      playBtn.setAttribute('aria-label', 'Run');
+      playBtn.innerHTML = `
+          <span class="control-inner"><svg viewBox="0 0 16 19" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M277.71,30.091a.8.8,0,0,1,0,1.433l-7.206,4.5-6.674,4.17c-.675.422-1.679.048-1.679-.626V22.3c0-.779,1.16-1.211,1.941-.723l6.411,4.006Z" transform="translate(-262.152 -21.375)" fill="currentColor"/></svg>
+          <span class='btn-label'>RUN</span></span>
+      `;
+
+      const stopBtn = document.createElement("button");
+      stopBtn.className = "action-btn stop hidden";
+      stopBtn.setAttribute('aria-label', 'Stop');
+      stopBtn.innerHTML = `
+          <span class="control-inner"><svg viewBox="0 0 19 19" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><rect width="19" height="19" rx="2" fill="currentColor"/></svg>
+          <span class='btn-label'>STOP</span></span>
+      `;
+
+      const downloadBtn = document.createElement("button");
+      downloadBtn.className = "action-btn download hidden";
+      downloadBtn.setAttribute('aria-label', 'Download');
+      downloadBtn.innerHTML = `
+          <span class="control-inner"><svg viewBox="0 0 24 20" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M-1793,3924a2,2,0,0,1-2-2v-5a2,2,0,0,1,2-2h3.482l5.235,6.406.206.2a1.652,1.652,0,0,0,1.066.39,1.667,1.667,0,0,0,1.278-.6l5.231-6.4h3.5a2,2,0,0,1,2,2v5a2,2,0,0,1-2,2Zm16-3h3v-3h-3Zm-15,0h3v-3h-3Zm8.494-1.235-6.358-7.783a.606.606,0,0,1,.505-.982H-1787v-5a2,2,0,0,1,2-2h4a2,2,0,0,1,2,2v5h2.359a.606.606,0,0,1,.5.981l-6.361,7.784a.652.652,0,0,1-.505.235A.649.649,0,0,1-1783.506,3919.765Z" transform="translate(1795 -3904)" fill="currentColor"/></svg>
+          <span class='btn-label'>LOAD</span></span>
+      `;
+
+      const slotBtn = document.createElement("button");
+      slotBtn.className = "slot-btn empty";
+      slotBtn.setAttribute('aria-label', 'Slot');
+      // wrap slot icon in control-inner so it can slide in visually
+      slotBtn.innerHTML = `<span class="control-inner"></span>`;
+      slotBtn.querySelector('.control-inner').appendChild(makeSlotIcon('2'));
+      // hide slot button for empty rows until a program is selected
+      slotBtn.classList.add('hidden');
+      // clicking the slot button should open a small slot-picker dropdown
+      slotBtn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        // if the slot button is hidden (empty row), do nothing
+        if (slotBtn.classList.contains('hidden')) return;
+        showSlotPicker(slotBtn, (num) => {
+          console.log("slotBtn", slotBtn.querySelector('.slot-number'));
+          slotBtn.querySelector('.slot-number').textContent = num;
+          slotBtn.classList.remove('empty');
+        });
+      });
+
+      const rowTd = document.createElement("td");
+      rowTd.classList.add("name-cell");
+      rowTd.append(playBtn, stopBtn, downloadBtn, slotBtn, ddContainer, removeBtn);
+      tr.append(rowTd);
+
+      // If an initial selection is provided, set the row state accordingly (no change event)
+      if (initialSelectedName) {
+        const item = (await getAllProjectsInfo()).find(d => d.name === initialSelectedName);
+        if (item) {
+          dropdown.setValue(initialSelectedName);
+          dropdown.selectedValue = initialSelectedName;
+          // set slot button number and mark as filled
+          slotBtn.querySelector('.slot-number').textContent = item.slot;
+          slotBtn.classList.remove("empty");
+          // animate controls in if they're hidden
+          if (removeBtn.classList.contains('hidden')) animateControlsIn();
+        }
+      }
+
+      // Listen for selection events from the Dropdown instance
+      ddContainer.addEventListener('dropdown-select', async (e) => {
+        const val = e.detail.value;
+        if (!val) return;
+        const item = (await getAllProjectsInfo()).find(d => d.name === val);
+        // update the slot button display and show it
+        slotBtn.querySelector('.slot-number').textContent = item.slot;
+        slotBtn.classList.remove('empty');
+        // animate controls in (only if not already visible)
+        if (removeBtn.classList.contains('hidden')) animateControlsIn();
+
+        // If this is the last row and there are still available options, add a new empty row
+        if (tr === tbody.lastElementChild) {
+          const available = await getAvailableOptions();
+          if (available.length > 0) tbody.appendChild(await createRow(true));
+        }
+
+        await refreshPickers();
+      });
+
+      // Animate the control buttons into view so they slide in and push the select
+      function animateControlsIn() {
+        // Animate controls starting from the ones adjacent to the select so the
+        // select appears pushed as they expand. Slide the inner content from
+        // the left while the button width expands so it looks like the buttons
+        // were off-screen to the left and are now pushing into place.
+        const controls = [slotBtn, removeBtn, downloadBtn, stopBtn, playBtn];
+        controls.forEach((btn, idx) => {
+          // reveal element (remove display:none)
+          btn.classList.remove('hidden');
+          // prepare inner sliding state
+          const inner = btn.querySelector('.control-inner');
+          if (inner) inner.classList.remove('in');
+          // start collapsed so it has zero width (push effect)
+          btn.classList.add('collapsed-control');
+          // force layout then expand width; inner will slide in shortly after
+          btn.getBoundingClientRect();
+          setTimeout(() => {
+            btn.classList.remove('collapsed-control');
+            // slight delay so width expansion begins, then slide inner content
+            setTimeout(() => { if (inner) inner.classList.add('in'); }, 30);
+          }, idx * 50);
+        });
+      }
+
+      removeBtn.addEventListener("click", async () => {
+        animateRemoveRow(tr, async() => {
+          await refreshPickers();
+          await ensureTrailingEmptyRow();
+        });
+      });
+
+      playBtn.addEventListener("click", async () => {
+        const val = ddContainer._dropdown.selectedValue;
+        if (!val) {
+          console.warn("No program selected to run");
+        }
+        const slot = (await getAllProjectsInfo()).find(d => d.name === val).slot;
+        await Play(slot);
+      });
+      stopBtn.addEventListener("click", Stop);
+      downloadBtn.addEventListener("click", async () => {
+        const val = ddContainer._dropdown.selectedValue;
+        if (!val) {
+          console.warn("No program selected to download");
+        }
+        const handle = (await getAllProjectsInfo()).find(d => d.name === val).handle;
+        await downloadFromHandle(handle);
+
+      });
+
+      return tr;
+    }
+
+    async function initSelectAll() {
+      tbody.innerHTML = "";
+      (await getAllProjectsInfo()).forEach(async d => {
+        tbody.appendChild(await createRow(false, d.name));
+      });
+      // ensure pickers are consistent and no trailing empty row is left
+      await refreshPickers();
+      await ensureTrailingEmptyRow();
+    }
+
+    // initial state: either start pre-filled for preview, or leave one empty picker
+    if (INIT_WITH_ALL) initSelectAll();
+    else ensureTrailingEmptyRow();
+
+
+    function makeSlotIcon(n) {
+      let icon = document.createElement('div');
+      icon.className = 'slot-wrapper';
+      icon.innerHTML = `
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 22 22" aria-hidden="true" focusable="false">
+              <path class="slot-icon" d="M429.673,19.5v4.255h-4.007V41.5h18.053V37.331h3.947V19.5Zm16.494,15.672h-2.448V23.752H431.173V21.118h14.994Z" transform="translate(-425.666 -19.497)"/>
+              <text class="slot-number" x="0" y="0">${n}</text>
+          </svg>
+      `;
+      return icon;
+    }
+
+    // --- Slot picker implementation ---
+    // Simple floating picker positioned below the slot button. Calls `onPick(num)`
+    // when a number is chosen.
+    let _activeSlotPicker = null;
+    function showSlotPicker(anchorBtn, onPick) {
+      // close existing
+      if (_activeSlotPicker) _activeSlotPicker.remove();
+      const list = document.createElement('div');
+      list.className = 'slot-picker-list';
+      [1, 2, 3, 4, 5, 6, 7, 8].forEach(n => {
+        const it = document.createElement('div');
+        it.className = 'slot-picker-item';
+        it.appendChild(makeSlotIcon(n));
+        it.addEventListener('click', () => {
+          onPick(n);
+          list.remove();
+          _activeSlotPicker = null;
+        });
+        list.appendChild(it);
+      });
+      document.body.appendChild(list);
+      _activeSlotPicker = list;
+      // position
+      const rect = anchorBtn.getBoundingClientRect();
+      list.style.position = 'absolute';
+      list.style.minWidth = '50px';
+      list.style.left = (rect.left + window.scrollX) + 'px';
+      list.style.top = (rect.bottom + window.scrollY) + 'px';
+      // close on outside click
+      const onDocClick = (e) => {
+        if (!list.contains(e.target) && e.target !== anchorBtn) {
+          list.remove();
+          _activeSlotPicker = null;
+          document.removeEventListener('click', onDocClick);
+        }
+      };
+      document.addEventListener('click', onDocClick);
+      // make sure picking an item removes the outside-click listener as well
+      Array.from(list.children).forEach(child => {
+        child.addEventListener('click', () => { document.removeEventListener('click', onDocClick); });
+      });
+    }
+
     /*=============================================================================
     * BLE Progress UI Controller
     *============================================================================*/
@@ -434,7 +1190,7 @@
         const el = container();
         if (!el) return;
 
-        el.classList.remove("error", "complete");
+        el.classList.remove("frozen", "error", "complete");
         el.classList.add("active");
 
         setBleProgress(lastPercent, statusText);
@@ -454,12 +1210,23 @@
 
       function setFailure(statusText = "Transfer failed") {
         const el = container();
-        if (!el) return;
+        const wrapper = document.querySelector(".ble-progress-wrapper");
+        if (!el || !wrapper) return;
+
+        // Stop progress animation immediately
+        el.classList.add("frozen");
 
         el.classList.remove("active", "complete");
         el.classList.add("error");
 
-        // Freeze bar at last known progress
+        // Wait one frame so width transition is fully cancelled
+        requestAnimationFrame(() => {
+          // Full-screen flash
+          wrapper.classList.remove("flash-error");
+          wrapper.offsetHeight; // force reflow
+          wrapper.classList.add("flash-error");
+        });
+
         setBleProgress(lastPercent, `Error: ${statusText}`);
       }
 
@@ -501,15 +1268,21 @@
       };
     })();
 
+    BleProgressUI.hide();
+
+    let progress;
+
     function downloadCallback(prog_dict) {
       const current_time = Date.now();
+      const current_progress = prog_dict.progress * 100;
       console.log(`Downloading:`, prog_dict);
       BleProgressUI.show();
       BleProgressUI.setInProgress("Downloading" + " .".repeat(Math.floor((current_time % 2000) * 4 / 2000)));
-      BleProgressUI.setPercent(Math.floor(prog_dict.progress * 100));
+      BleProgressUI.setPercent(Math.floor(current_progress));
       if (prog_dict.progress == 1) {
         BleProgressUI.setSuccess("Download Complete!");
       }
+      progress = current_progress;
     }
 
     let masterHandle = null;
@@ -573,6 +1346,20 @@
     async function getFileText(handle) {
       const file = await handle.getFile();
       return await file.text();
+    }
+
+    async function getProgramText(handle) {
+      switch (handle.kind) {
+        case ('file'):
+          return await getFileText(handle);
+        case ('directory'):
+          const vscodeDir = await handle.getDirectoryHandle('.vscode');
+          const srcDir = await handle.getDirectoryHandle('src');
+          const mainFile = await srcDir.getFileHandle('main.py');
+          return await getFileText(mainFile);
+        default:
+          throw new Error(`Unrecognized handle kind: ${handle.kind}`);
+      }
     }
 
     async function getProjectJSON(handle) {
@@ -648,48 +1435,91 @@
       return project_handles;
     }
 
-    document.getElementById('importCodeFolder').addEventListener('click', async () => {
+     async function importCodeDir() {
       let codeHandle = await window.showDirectoryPicker({
         startIn: directoryHandle || "documents",
       });
-      window.projects = await getAllFilePaths([codeHandle]);
-      for (const [fullPath, handle] of Object.entries(window.projects)) {
+      projects = await getAllFilePaths([codeHandle]);
+      for (const [fullPath, handle] of Object.entries(projects)) {
         const projectName = await getProjectName(handle);
         const slot = await getProjectSlot(handle);
         console.log(`${projectName} (${slot}): ${fullPath}`);
       }
-    });
+      await refreshPickers();
+    }
+    document.getElementById("importCodeFolder").addEventListener('click', importCodeDir);
 
-    document.getElementById("download").addEventListener('click', async () => {
-      if (programFileHandle) {
-        console.log("programFileHandle is truthy");
-        // Re-read latest version in case it changed externally
-        let file = await handle.getFile();
-        let file_text = await file.text();
-        let programText;
-        let file_extension = get_extension(file);
-        if (file_extension == "py") {
-          programText = file_text;
-        } else {
-          try {
-            programText = JSON.parse(file_text).textContent;
-          } catch (e) {
-            log("Invalid file");
-            console.warn(`Invalid file; error was: ${e.message}\nExtension was: ${file_extension}`);
+    /**
+     * Rejects if `getValue()` does not change for `ms` milliseconds
+     * @param {Function} getValue - Function that returns the current value to watch
+     * @param {Promise} promise - The promise to wrap
+     * @param {number} ms - Maximum idle time before rejecting
+     */
+    function withIdleTimeout(getValue, promise, ms) {
+      return new Promise((resolve, reject) => {
+        let lastValue = getValue();
+        let timer = setTimeout(() => {
+          reject(new Error(`Operation stalled: value did not change for ${ms} ms`));
+        }, ms);
+
+        // Periodically check for change
+        const interval = setInterval(() => {
+          const current = getValue();
+          if (current !== lastValue) {
+            lastValue = current;
+            clearTimeout(timer);
+            timer = setTimeout(() => {
+              reject(new Error(`Operation stalled: value did not change for ${ms} ms`));
+            }, ms);
           }
-        }
+        }, 100); // check every 100 ms
+
+        promise
+          .then((res) => {
+            clearTimeout(timer);
+            clearInterval(interval);
+            resolve(res);
+          })
+          .catch((err) => {
+            clearTimeout(timer);
+            clearInterval(interval);
+            reject(err);
+          });
+      });
+    }
+
+
+    async function downloadFromHandle(handle) {
+      if (handle) {
+        BleProgressUI.show();
+        BleProgressUI.setInProgress("Preparing download...");
+        BleProgressUI.setPercent(0);
+        const programText = await getProgramText(handle);
         let encoder = new TextEncoder();
         let programData = encoder.encode(programText);
-        const slotNum = parseInt(slotPicker.value, 10);
-        const slotIndex = slotNum - 1;
-        console.log(await get_file_name(masterHandle));
-        await downloadProgram(slotIndex, await get_file_name(masterHandle), "python", programData, downloadCallback, "Python");
-        BleProgressUI.hide();
+        const slotNum = await getProjectSlot(handle);
+        console.log(await get_file_name(handle));
+        let downloadComplete = false;
+        let success;
+        try {
+          success = await withIdleTimeout(() => progress, downloadProgram(slotNum, await get_file_name(handle), "python", programData, downloadCallback, "Python"), 1000);
+        } catch (e) {
+          BleProgressUI.setFailure("Download failed");
+          setTimeout(BleProgressUI.hide, 2000);
+          return;
+        }
+        if (success) {
+          BleProgressUI.setSuccess("Download Complete!");
+          setTimeout(BleProgressUI.hide, 750);
+        } else {
+          BleProgressUI.setFailure("Brain disconnected");
+          setTimeout(BleProgressUI.hide, 2000);
+        }
       } else {
         alert("No program selected. Please select a file first.");
         return;
       }
-    });
+    }
 
     // =======================================================
     // Main program
