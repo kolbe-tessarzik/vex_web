@@ -5642,28 +5642,26 @@ class VEXBLEDeviceManager {
     * @param ide  "Blocks" or "Python"
     * @returns
     */
-    downloadProgram(slot, projectName, language, data, progressCallback, ide) {
-        return __awaiter(this, void 0, void 0, function* () {
-            log3.info("downloadProgram", slot, projectName, language);
-            const icon = ide == "Blocks" ? VEXcodeIcons.VEXcodeBlocks : (language == "cpp" ? VEXcodeIcons.VEXcodeCPP : VEXcodeIcons.VEXcodePython);
-            const programInfo = {
-                slot,
-                name: projectName,
-                description: "",
-                icon,
-                ide,
-                ports: [],
-                triports: [],
-                controller1: null,
-                controller2: null,
-                language,
-            };
-            log3.debug("stopping current project on the brain");
-            yield this.Stop();
-            return this.vexCDCDevice.downloadProgram(data, programInfo, (downloadData) => {
-                const { progress, state } = downloadData;
-                progressCallback({ progress, step: state });
-            });
+    async downloadProgram(slot, projectName, language, data, progressCallback, ide) {
+        log3.info("downloadProgram", slot, projectName, language);
+        const icon = ide == "Blocks" ? VEXcodeIcons.VEXcodeBlocks : (language == "cpp" ? VEXcodeIcons.VEXcodeCPP : VEXcodeIcons.VEXcodePython);
+        const programInfo = {
+            slot,
+            name: projectName,
+            description: "",
+            icon,
+            ide,
+            ports: [],
+            triports: [],
+            controller1: null,
+            controller2: null,
+            language,
+        };
+        log3.debug("stopping current project on the brain");
+        await this.Stop();
+        return this.vexCDCDevice.downloadProgram(data, programInfo, (downloadData) => {
+            const { progress, state } = downloadData;
+            progressCallback({ progress, step: state });
         });
     }
     checkAndInstallPythonVm(crc, version, progressCallback, force = false) {
