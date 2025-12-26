@@ -448,7 +448,6 @@
       animation: bounce 0.6s infinite;
     }
 
-
     .action-btn:disabled {
         opacity: 0.5;
         cursor: not-allowed;
@@ -644,7 +643,9 @@
   <link id="favicon" rel="icon" href="favicon.png" type="image/png">
   <script src="ble_sniffer.js" defer></script>
   <script src="dropdown.js" defer></script>
+  <script src="project.js" defer></script>
   <script src="vex-ble-device-manager.js" defer></script>
+  <script src="indexedDB.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
 </head>
 
@@ -659,8 +660,8 @@
 
     <div class="row">
       <button id="clearBtn">Clear</button>
-      <button id="selectProgram">Select Program</button>
-      <button id="selectProjectDir">Select Project Dir</button>
+      <button id="selectFolder">Open Folder</button>
+      <!-- <button id="clearDirectories">Clear Directories</button> -->
     </div>
   </div>
   <table id="pickerTable">
@@ -726,44 +727,19 @@
     * @global
     * @type {Object.<string, (FileSystemFileHandle|FileSystemDirectoryHandle)>}
     */
-
-    function createBouncyCallback(btnToBounce) {
-      btnToBounce.addEventListener('mouseenter', () => {
-        if (btnToBounce.disabled) {
-          connectBtn.classList.add('bounce');
-        }
-      });
-
-      btnToBounce.addEventListener('mouseleave', () => {
-        connectBtn.classList.remove('bounce');
-      });
-    }
-
     let projects;
-
-    async function getProjectInfo(fullPath, handle) {
-      const projectName = await getProjectName(handle);
-      const slot = await getProjectSlot(handle);
-      return { name: projectName, path: fullPath, slot: slot, handle: handle };
-    }
+    let directoryHandles = [];
+    let allDisabled = true;
 
     async function getAllProjectsInfo() {
-      if (!projects) return [];
       let allProjectsInfo = [];
-      for (const [fullPath, handle] of Object.entries(projects)) {
-        allProjectsInfo.push(await getProjectInfo(fullPath, handle));
+      if (!projects) return allProjectsInfo;
+      for (const project of projects) {
+        allProjectsInfo.push(await project.info());
       }
       return allProjectsInfo;
     }
 
-    const DATA = [
-      { name: "XDrive", slot: 1, path: "Code/VEX/XDrive" },
-      { name: "R3BeatThee", slot: 1, path: "Code/VEX/R3BeatThee" },
-      { name: "NewerBotCode", slot: 2, path: "Code/VEX/NewerBotCode" },
-      { name: "WidthSensor", slot: 6, path: "Code/VEX/WidthSensor" },
-      { name: "BLETest", slot: 1, path: "Code/vex_web/BLETest" },
-      { name: "NewTest", slot: 1, path: "Code/vex_web/NewTest.iqpython" }
-    ];
     /*=============================================================================
     * Table with program pickers and action buttons
     *============================================================================*/
@@ -786,12 +762,12 @@
         .map(d => ({ text: d.name, path: d.path, value: d.name }));
     }
 
-    async function refreshPickers() {
+    async function refreshPickers(options = null) {
       Array.from(tbody.querySelectorAll('.custom-select')).forEach(async div => {
         const dropdown = div._dropdown;
         if (!dropdown) return;
         const current = dropdown.selectedValue;
-        const opts = await getDropdownOptions(current);
+        const opts = options || await getDropdownOptions(current);
         dropdown.update_options(opts);
         if (current) dropdown.setValue(current);
       });
@@ -985,10 +961,17 @@
         ev.stopPropagation();
         // if the slot button is hidden (empty row), do nothing
         if (slotBtn.classList.contains('hidden')) return;
-        showSlotPicker(slotBtn, (num) => {
+        showSlotPicker(slotBtn, async (num) => {
           console.log("slotBtn", slotBtn.querySelector('.slot-number'));
           slotBtn.querySelector('.slot-number').textContent = num;
           slotBtn.classList.remove('empty');
+          const val = ddContainer._dropdown.selectedValue;
+          if (!val) {
+            console.warn("No program selected to download");
+          }
+          const handle = (await getAllProjectsInfo()).find(d => d.name === val).handle;
+
+          changeSlot(handle, num);
         });
       });
 
@@ -997,9 +980,17 @@
       rowTd.append(playBtn, stopBtn, downloadBtn, slotBtn, ddContainer, removeBtn);
       tr.append(rowTd);
 
-      [playBtn, stopBtn, downloadBtn].forEach(btn => {
-        btn.disabled = allDisabled;
-        createBouncyCallback(btn);
+      // Make bouncy connect button effect on play/stop/download disabled button hover
+      [playBtn, stopBtn, downloadBtn].forEach(btnToBounce => {
+        btnToBounce.disabled = allDisabled;
+        btnToBounce.addEventListener('mouseenter', () => {
+          if (btnToBounce.disabled) {
+            connectBtn.classList.add('bounce');
+          }
+        });
+        btnToBounce.addEventListener('mouseleave', () => {
+          connectBtn.classList.remove('bounce');
+        });
       });
 
       // If an initial selection is provided, set the row state accordingly (no change event)
@@ -1064,7 +1055,6 @@
       removeBtn.addEventListener("click", async () => {
         animateRemoveRow(tr, async() => {
           await refreshPickers();
-          await ensureTrailingEmptyRow();
         });
       });
 
@@ -1083,8 +1073,8 @@
           console.warn("No program selected to download");
         }
         const handle = (await getAllProjectsInfo()).find(d => d.name === val).handle;
-        await downloadFromHandle(handle);
-
+        const slot = Number(slotBtn.querySelector('.slot-number').textContent) - 1;
+        await downloadFromHandle(handle, slot);
       });
 
       return tr;
@@ -1097,7 +1087,6 @@
       });
       // ensure pickers are consistent and no trailing empty row is left
       await refreshPickers();
-      await ensureTrailingEmptyRow();
     }
 
     // initial state: either start pre-filled for preview, or leave one empty picker
@@ -1295,9 +1284,6 @@
       progress = current_progress;
     }
 
-    let masterHandle = null;
-    let programFileHandle = null;
-    let directoryHandle = null;
 
     function get_extension(file) {
       const nameParts = file.name.split('.');
@@ -1317,39 +1303,6 @@
       return nameParts[0];
     }
 
-    document.getElementById("selectProgram").addEventListener('click', async () => {
-      [programFileHandle] = await window.showOpenFilePicker({
-        id: "slot_1",
-        types: [{
-          description: "VEX IQ Python",
-          accept: { "text/plain": [".py", ".iqpython"] }
-        }],
-        multiple: false
-      });
-      const file = await programFileHandle.getFile();
-      let file_text = await file.text();
-      masterHandle = programFileHandle;
-    });
-
-    document.getElementById("selectProjectDir").addEventListener('click', async () => {
-      const dirBtn = document.getElementById("selectProjectDir");
-      directoryHandle = await window.showDirectoryPicker({
-        startIn: directoryHandle || "documents",
-      });
-      dirBtn.disabled = true;
-      dirBtn.textContent = "Reading files . . ."
-      let srcDirectoryHandle = await directoryHandle.getDirectoryHandle("src");
-      programFileHandle = await srcDirectoryHandle.getFileHandle("main.py");
-      const file = await programFileHandle.getFile();
-      let file_text = await file.text();
-      masterHandle = directoryHandle;
-      dirBtn.textContent = "Files read sucessfully!";
-      setTimeout(() => {
-        dirBtn.textContent = "Select Project Dir";
-        dirBtn.disabled = false;
-      }, 500);
-    });
-
     /**
     * @param {FileSystemDirectoryHandle} handle
     */
@@ -1361,7 +1314,7 @@
     async function getProgramText(handle) {
       switch (handle.kind) {
         case ('file'):
-          return await getFileText(handle);
+          return (await getProjectJSON(handle)).textContent;
         case ('directory'):
           const vscodeDir = await handle.getDirectoryHandle('.vscode');
           const srcDir = await handle.getDirectoryHandle('src');
@@ -1372,7 +1325,11 @@
       }
     }
 
-    async function getProjectJSON(handle) {
+    /*
+     * @param {FileSystemHandle} handle
+     * @returns {FileSystemFileHandle} jsonHandle
+     */
+    async function getJSONhandle(handle) {
       let jsonHandle;
       switch (handle.kind) {
         case ('file'):
@@ -1384,6 +1341,11 @@
         default:
           throw new Error(`Unrecognized handle kind: ${handle.kind}`);
       }
+      return jsonHandle;
+    }
+
+    async function getProjectJSON(handle) {
+      const jsonHandle = await getJSONhandle(handle);
       const jsonFile = await jsonHandle.getFile();
       const jsonText = await jsonFile.text();
       const dict = JSON.parse(jsonText);
@@ -1417,7 +1379,29 @@
       }
     }
 
-    async function getAllFilePaths(dir_handles, path = null, project_handles = {}) {
+    async function changeSlot(handle, slot) {
+      // slot is 1-indexed coming in
+      const jsonHandle = await getJSONhandle(handle);
+      const dict = await getProjectJSON(handle);
+      let jsonString = '';
+      if (handle.kind == 'file') {
+        // .iqpython
+        dict.slot = slot - 1;
+        jsonString = JSON.stringify(dict);
+      } else {
+        // vscode project
+        dict.project.slot = slot;
+        jsonString = JSON.stringify(dict, null, '\t');
+      }
+      const writable = await jsonHandle.createWritable();
+      await writable.write(jsonString);
+      await writable.close();
+    }
+
+    async function getAllFilePaths(dir_handles, path = null, project_arr = []) {
+      if (!dir_handles) {
+        return project_arr;
+      }
       const final_dir = dir_handles.at(-1);
       for await (const entry of final_dir.values()) {
         const fullPath = `${path ?? final_dir.name}/${entry.name}`;
@@ -1430,32 +1414,63 @@
             // project_dir
             const project_path = fullPath.split('/').slice(0, -2).join('/');
             const project_dir = dir_handles.at(-2);
-            project_handles[project_path] = project_dir;
+            project_arr.push(new Project(project_path, project_dir));
           }
           else if (entry.name.endsWith('.iqpython')) {
-            project_handles[fullPath] = entry;
+            project_arr.push(new Project(fullPath, entry));
           }
         } else if (entry.kind === 'directory') {
           const new_handles = dir_handles.slice();
           new_handles.push(entry);
           // Recursively call for subdirectories
-          await getAllFilePaths(new_handles, fullPath, project_handles);
+          await getAllFilePaths(new_handles, fullPath, project_arr);
         }
       }
-      return project_handles;
+      return project_arr;
     }
 
-     async function importCodeDir() {
-      let codeHandle = await window.showDirectoryPicker({
-        startIn: directoryHandle || "documents",
-      });
-      projects = await getAllFilePaths([codeHandle]);
-      for (const [fullPath, handle] of Object.entries(projects)) {
-        const projectName = await getProjectName(handle);
-        const slot = await getProjectSlot(handle);
-        console.log(`${projectName} (${slot}): ${fullPath}`);
+    let indexedDBPromise = getData('lastStoredCodeDir');
+    const codeHandlesPromise = getCodeHandles();
+
+    async function getCodeHandles(dirHandleMaybe) {
+      const dirHandle = dirHandleMaybe ? dirHandleMaybe : (await indexedDBPromise);
+      if (!dirHandle) {
+        console.warn("No directory handle provided or found in indexedDB.");
+        return;
       }
+      directoryHandles.push(dirHandle);
+      projects = await getAllFilePaths(directoryHandles); // BROKEN COME BACK
+    }
+
+    async function importCodeDir(manual = false) {
+      let codeHandle;
+      let indexedDBResult;
+      if (manual) {
+        codeHandle = await window.showDirectoryPicker({
+          startIn: directoryHandles[0] || "documents",
+          mode: 'readwrite',
+        });
+      } else {
+        indexedDBResult = await indexedDBPromise;
+        console.log("IndexedDB result:", indexedDBResult);
+        codeHandle = indexedDBResult || await window.showDirectoryPicker({
+          startIn: directoryHandles[0] || "documents",
+          mode: 'readwrite',
+        });
+      }
+      if (codeHandle === indexedDBResult) {
+        await codeHandlesPromise;
+      } else {
+        await getCodeHandles(codeHandle);
+      }
+      // for (const [fullPath, handle] of Object.entries(projects)) {
+      //   const projectName = await getProjectName(handle);
+      //   const slot = await getProjectSlot(handle);
+      //   console.log(`${projectName} (${slot}): ${fullPath}`);
+      // }
       await refreshPickers();
+      putHandle('lastStoredCodeDir', codeHandle); // don't use await, storing takes too long
+      return;
     }
 
     /**
@@ -1498,15 +1513,16 @@
     }
 
 
-    async function downloadFromHandle(handle) {
+    async function downloadFromHandle(handle, slot = null) {
       if (handle) {
         BleProgressUI.show();
         BleProgressUI.setInProgress("Preparing download...");
         BleProgressUI.setPercent(0);
         const programText = await getProgramText(handle);
+        console.log("Text:", programText);
         let encoder = new TextEncoder();
         let programData = encoder.encode(programText);
-        const slotNum = await getProjectSlot(handle);
+        const slotNum = slot || await getProjectSlot(handle);
         console.log(await get_file_name(handle));
         let downloadComplete = false;
         let success;
@@ -1553,8 +1569,6 @@
 
     snapBtn.style.display = "none";
     //snapBtn.style.display = "flex";
-
-    let allDisabled = true;
 
     function enable_buttons() {
       const ncConts = document.querySelectorAll('.name-cell');
@@ -2057,8 +2071,8 @@
           maintainAspectRatio: false,
           scales: {
             y: {
-              min: 0,    // force bottom of y-axis
-              max: 360,    // force top of y-axis
+              min: -180,    // force bottom of y-axis
+              max: 180,    // force top of y-axis
               position: 'left',
             },
             y2: {
