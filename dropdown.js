@@ -261,11 +261,9 @@ class Dropdown {
         if (!options || !Array.isArray(options) || options.length === 0) {
             // Treat empty arrays as "no options" so the Dropdown can
             // invoke its empty callback (e.g., to prompt user to import projects).
-            console.log("Empty or missing options:", options);
             this._empty = true;
             options = [{ path: '', text: 'No options available', value: null }];
         } else {
-            console.log("Options provided:", options);
             this._empty = false;
             options = options.slice();
         }

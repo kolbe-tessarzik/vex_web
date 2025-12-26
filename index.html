@@ -727,47 +727,40 @@
     * @global
     * @type {Object.<string, (FileSystemFileHandle|FileSystemDirectoryHandle)>}
     */
-    let projects;
+    let projects = [];
     let directoryHandles = [];
     let allDisabled = true;
-
-    async function getAllProjectsInfo() {
-      let allProjectsInfo = [];
-      if (!projects) return allProjectsInfo;
-      for (const project of projects) {
-        allProjectsInfo.push(await project.info());
-      }
-      return allProjectsInfo;
-    }
 
     /*=============================================================================
     * Table with program pickers and action buttons
     *============================================================================*/
     const tbody = document.querySelector("#pickerTable tbody");
-    // Set to true to start with all getAllProjectsInfo() items pre-selected for layout preview
+    // Set to true to start with all projects pre-selected for layout preview
     const INIT_WITH_ALL = false;
 
-    function getSelectedNames() {
+    function getSelectedProjects() {
       return Array.from(tbody.querySelectorAll('.custom-select'))
         .map(c => c._dropdown && c._dropdown.selectedValue)
         .filter(v => v);
     }
+
     // Build dropdown options for a row, keeping currentSelected available
-    async function getDropdownOptions(currentSelectedName = "") {
-      const selectedNames = getSelectedNames();
-      const all = await getAllProjectsInfo();
+    async function getDropdownOptions(currentProject) {
+      const selected = getSelectedProjects();
       // Map project info into the shape Dropdown expects
-      return all
-        .filter(d => (d.name === currentSelectedName) || !selectedNames.includes(d.name))
-        .map(d => ({ text: d.name, path: d.path, value: d.name }));
+      return await Promise.all(
+        projects
+        .filter(p => (p === currentProject) || !selected.includes(p))
+        .map(async p => ({ text: (await p.name()), path: p.path, value: p }))
+      )
     }
 
-    async function refreshPickers(options = null) {
+    async function refreshPickers() {
       Array.from(tbody.querySelectorAll('.custom-select')).forEach(async div => {
         const dropdown = div._dropdown;
         if (!dropdown) return;
         const current = dropdown.selectedValue;
-        const opts = options || await getDropdownOptions(current);
+        const opts = await getDropdownOptions(current);
         dropdown.update_options(opts);
         if (current) dropdown.setValue(current);
       });
@@ -775,13 +768,13 @@
       await ensureTrailingEmptyRow();
     }
 
-    async function getAvailableOptions() {
-      const selected = getSelectedNames();
-      return (await getAllProjectsInfo()).filter(d => !selected.includes(d.name));
+    function getAvailableOptions() {
+      const selected = getSelectedProjects();
+      return projects.filter(p => !selected.includes(p));
     }
 
     async function ensureTrailingEmptyRow() {
-      const available = await getAvailableOptions();
+      const available = getAvailableOptions();
       // Find rows that are "empty" (no selected value)
       const emptyRows = Array.from(tbody.querySelectorAll('tr')).filter(row => {
         const div = row.querySelector('.custom-select');
@@ -895,7 +888,7 @@
       setTimeout(finish, 500);
     }
 
-    async function createRow(isLast = false, initialSelectedName = "") {
+    async function createRow(isLast = false, initialSelectedProject = null) {
       const tr = document.createElement("tr");
 
       // Buttons
@@ -915,7 +908,7 @@
       const ddContainer = document.createElement('div');
       ddContainer.classList.add('custom-select');
       // Await the options so we pass an actual array to Dropdown (not a Promise)
-      const initialOpts = await getDropdownOptions(initialSelectedName);
+      const initialOpts = await getDropdownOptions(initialSelectedProject);
       const dropdown = new Dropdown(initialOpts, ddContainer);
       dropdown.onSelect = (val) => {
         alert(`Selected: ${val}`);
@@ -965,11 +958,11 @@
           console.log("slotBtn", slotBtn.querySelector('.slot-number'));
           slotBtn.querySelector('.slot-number').textContent = num;
           slotBtn.classList.remove('empty');
-          const val = ddContainer._dropdown.selectedValue;
+          const project = ddContainer._dropdown.selectedValue;
           if (!val) {
             console.warn("No program selected to download");
           }
-          const handle = (await getAllProjectsInfo()).find(d => d.name === val).handle;
+          const handle = project.handle;
 
           changeSlot(handle, num);
         });
@@ -994,11 +987,11 @@
       });
 
       // If an initial selection is provided, set the row state accordingly (no change event)
-      if (initialSelectedName) {
-        const item = (await getAllProjectsInfo()).find(d => d.name === initialSelectedName);
+      if (initialSelectedProject) {
+        const item = projects.find(d => d.name === initialSelectedProject);
         if (item) {
-          dropdown.setValue(initialSelectedName);
-          dropdown.selectedValue = initialSelectedName;
+          dropdown.setValue(initialSelectedProject);
+          dropdown.selectedValue = initialSelectedProject;
           // set slot button number and mark as filled
           slotBtn.querySelector('.slot-number').textContent = item.slot;
           slotBtn.classList.remove("empty");
@@ -1011,16 +1004,16 @@
       ddContainer.addEventListener('dropdown-select', async (e) => {
         const val = e.detail.value;
         if (!val) return;
-        const item = (await getAllProjectsInfo()).find(d => d.name === val);
+        const item = projects.find(p => p === val);
         // update the slot button display and show it
-        slotBtn.querySelector('.slot-number').textContent = item.slot;
+        slotBtn.querySelector('.slot-number').textContent = await item.slot();
         slotBtn.classList.remove('empty');
         // animate controls in (only if not already visible)
         if (removeBtn.classList.contains('hidden')) animateControlsIn();
 
         // If this is the last row and there are still available options, add a new empty row
         if (tr === tbody.lastElementChild) {
-          const available = await getAvailableOptions();
+          const available = getAvailableOptions();
           if (available.length > 0) tbody.appendChild(await createRow(true));
         }
 
@@ -1063,7 +1056,7 @@
         if (!val) {
           console.warn("No program selected to run");
         }
-        const slot = (await getAllProjectsInfo()).find(d => d.name === val).slot;
+        const slot = projects.find(d => d.name === val).slot;
         await Play(slot);
       });
       stopBtn.addEventListener("click", Stop);
@@ -1072,7 +1065,7 @@
         if (!val) {
           console.warn("No program selected to download");
         }
-        const handle = (await getAllProjectsInfo()).find(d => d.name === val).handle;
+        const handle = projects.find(d => d === val).handle;
         const slot = Number(slotBtn.querySelector('.slot-number').textContent) - 1;
         await downloadFromHandle(handle, slot);
       });
@@ -1082,8 +1075,8 @@
 
     async function initSelectAll() {
       tbody.innerHTML = "";
-      (await getAllProjectsInfo()).forEach(async d => {
-        tbody.appendChild(await createRow(false, d.name));
+      projects.forEach(async d => {
+        tbody.appendChild(await createRow(false, d));
       });
       // ensure pickers are consistent and no trailing empty row is left
       await refreshPickers();
