@@ -114,12 +114,19 @@ from vex import *
 import sys
 import struct
 
+def normalize(angle):
+    while angle < -180:
+        angle += 360
+    while angle >= 180:
+        angle -= 360
+    return angle
+
 idc = {
     0:  ("Axis A",  "b",  lambda: controller.axisA.position()),
     1:  ("Axis B",  "b",  lambda: controller.axisB.position()),
     2:  ("Axis C",  "b",  lambda: controller.axisC.position()),
     3:  ("Axis D",  "b",  lambda: controller.axisD.position()),
-    4:  ("Heading", "f",  lambda: brain_inertial.heading()),
+    4:  ("Heading", "f",  lambda: normalize(brain_inertial.heading())),
     5:  ("Rotation", "f", lambda: brain_inertial.rotation()),
     6:  ("Roll", "f",     lambda: brain_inertial.orientation(ROLL)),
     7:  ("Pitch", "f",    lambda: brain_inertial.orientation(PITCH)),
