@@ -144,9 +144,8 @@ class Dropdown {
                         return;
                     }
                 }
-            } else {
-                this.toggle();
             }
+            this.toggle();
 
         });
 
@@ -362,6 +361,10 @@ class Dropdown {
         this._focusedIndex = -1;
     }
 
+    addOption(option) {
+        this.update_options([...this._options, option]);
+    }
+
     _moveFocus(delta) {
         const items = Array.from(this.selectItems.querySelectorAll('.list-el'));
         if (!items.length) return;
@@ -394,9 +397,3 @@ class Dropdown {
         this.container.addEventListener('dropdown-select', (e) => handler(e.detail));
     }
 }
-
-const optionsData = [
-    { path: 'Code/Vex/Project1', text: 'Project1', value: "Hello" },
-    { path: 'Code/Vex/Projects/Project2.iqpython', text: 'Project2', value: new Array(5) },
-    { path: 'Code/Other/Project3', text: 'Project3', value: "My name is bob" }
-];
