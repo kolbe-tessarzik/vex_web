@@ -1397,6 +1397,45 @@
       await writable.close();
     }
 
+    async function asyncFilter(arr, asyncCallbackFn) {
+      const results = await Promise.all(arr.map(asyncCallbackFn));
+      return arr.filter((_element, index) => results[index]);
+    };
+
+    async function asyncFindIndex(arr, asyncCallbackFn) {
+      const results = await Promise.all(arr.map(asyncCallbackFn));
+      return results.findIndex(result => result);
+    }
+
+    async function asyncFind(arr, asyncCallbackFn) {
+      const index = await asyncFindIndex(arr, asyncCallbackFn);
+      return arr[index];
+    }
+
+    async function filterEqualProjects(arr) {
+      const result = [];
+      for (const project of arr) {
+          const index = await asyncFindIndex(result, existing => existing.equals(project));
+          if (index === -1) {
+              // No equivalent object yet, add it
+              result.push(project);
+          }
+      }
+      return result;
+
+      // return asyncFilter(arr, async (element, index, array) => {
+      //   return index === await asyncFindIndex(array, e => e.equals(element));
+      // });
+    }
+
+    async function findAllProjectsInDirectories(dir_handles) {
+      let newProjects = [];
+      for (const handle of dir_handles) {
+        newProjects.push(...await findAllProjects([handle], null));
+      }
+      return await filterEqualProjects(newProjects);
+    }
+
     async function findAllProjects(dir_handles, path = null, project_arr = []) {
       if (!dir_handles) {
         return project_arr;
@@ -1438,7 +1477,7 @@
         return;
       }
       directoryHandles.push(dirHandle);
-      projects = await findAllProjects(directoryHandles); // BROKEN COME BACK
+      projects = await findAllProjectsInDirectories(directoryHandles);
     }
 
     async function importCodeDir(manual = false) {
