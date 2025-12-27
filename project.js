@@ -86,6 +86,11 @@ class Project {
         }
     }
 
+    async slotIndex() {
+        // return the 0-indexed slot number
+        return (await this.slot()) - 1;
+    }
+
     /*
         @param newSlot {Number} 1-indexed
     */

@@ -961,16 +961,13 @@
         // if the slot button is hidden (empty row), do nothing
         if (slotBtn.classList.contains('hidden')) return;
         showSlotPicker(slotBtn, async (num) => {
-          console.log("slotBtn", slotBtn.querySelector('.slot-number'));
           slotBtn.querySelector('.slot-number').textContent = num;
           slotBtn.classList.remove('empty');
           const project = ddContainer._dropdown.selectedValue;
-          if (!val) {
+          if (!project) {
             console.warn("No program selected to download");
           }
-          const handle = project.handle;
-
-          changeSlot(handle, num);
+          await project.setSlot(num);
         });
       });
 
@@ -1058,22 +1055,20 @@
       });
 
       playBtn.addEventListener("click", async () => {
-        const val = ddContainer._dropdown.selectedValue;
-        if (!val) {
+        const project = ddContainer._dropdown.selectedValue;
+        if (!project) {
           console.warn("No program selected to run");
         }
-        const slot = projects.find(d => d.name === val).slot;
-        await Play(slot);
+        const slotIndex = await project.slotIndex();
+        await Play(slotIndex);
       });
       stopBtn.addEventListener("click", Stop);
       downloadBtn.addEventListener("click", async () => {
-        const val = ddContainer._dropdown.selectedValue;
-        if (!val) {
+        const project = ddContainer._dropdown.selectedValue;
+        if (!project) {
           console.warn("No program selected to download");
         }
-        const handle = projects.find(d => d === val).handle;
-        const slot = Number(slotBtn.querySelector('.slot-number').textContent) - 1;
-        await downloadFromHandle(handle, slot);
+        await downloadProject(project);
       });
 
       return tr;
@@ -1355,48 +1350,6 @@
       }
     }
 
-    async function getProjectName(handle) {
-      switch (handle.kind) {
-        case ('file'):
-          return handle.name.slice(0, -9);
-        case ('directory'):
-          // vscode folder handle
-          return (await getProjectJSON(handle)).project.name;
-        default:
-          throw new Error(`Unexpected handle type: ${handle.kind}`);
-      }
-    }
-
-    async function getProjectSlot(handle) {
-      // return the 1-indexed slot number
-      // of the project passed in
-      switch (handle.kind) {
-        case ('file'):
-          return (await getProjectJSON(handle)).slot + 1;
-        case ('directory'):
-          return (await getProjectJSON(handle)).project.slot;
-      }
-    }
-
-    async function changeSlot(handle, slot) {
-      // slot is 1-indexed coming in
-      const jsonHandle = await getJSONhandle(handle);
-      const dict = await getProjectJSON(handle);
-      let jsonString = '';
-      if (handle.kind == 'file') {
-        // .iqpython
-        dict.slot = slot - 1;
-        jsonString = JSON.stringify(dict);
-      } else {
-        // vscode project
-        dict.project.slot = slot;
-        jsonString = JSON.stringify(dict, null, '\t');
-      }
-      const writable = await jsonHandle.createWritable();
-      await writable.write(jsonString);
-      await writable.close();
-    }
-
     async function asyncFilter(arr, asyncCallbackFn) {
       const results = await Promise.all(arr.map(asyncCallbackFn));
       return arr.filter((_element, index) => results[index]);
@@ -1550,22 +1503,24 @@
       });
     }
 
-
-    async function downloadFromHandle(handle, slot = null) {
-      if (handle) {
+    /*
+    * @param {Project} project
+    */
+    async function downloadProject(project) {
+      if (project) {
         BleProgressUI.show();
         BleProgressUI.setInProgress("Preparing download...");
         BleProgressUI.setPercent(0);
-        const programText = await getProgramText(handle);
+        const programText = await project.programText();
         console.log("Text:", programText);
         let encoder = new TextEncoder();
         let programData = encoder.encode(programText);
-        const slotNum = slot || await getProjectSlot(handle);
-        console.log(await get_file_name(handle));
+        const slotIndex = await project.slotIndex();
+        console.log(await project.name());
         let downloadComplete = false;
         let success;
         try {
-          success = await withIdleTimeout(() => progress, downloadProgram(slotNum, await get_file_name(handle), "python", programData, downloadCallback, "Python"), 1000);
+          success = await withIdleTimeout(() => progress, downloadProgram(slotIndex, await project.name(), "python", programData, downloadCallback, "Python"), 1000);
         } catch (e) {
           BleProgressUI.setFailure("Download failed");
           setTimeout(BleProgressUI.hide, 2000);
@@ -2031,16 +1986,6 @@
       connectBtn.disabled = false;
       connectBtn.removeEventListener('click', connect);
       connectBtn.addEventListener('click', disconnect_callback);
-    }
-
-    async function run_program() {
-      const slotNum = parseInt(slotPicker.value, 10);
-      const slotIndex = slotNum - 1;
-      if (await Play(slotIndex)) {
-        log(`Run command sent to Slot ${slotNum}`);
-      } else {
-        log(`Cannot start empty Slot ${slotNum}`);
-      }
     }
 
     disable_buttons();
