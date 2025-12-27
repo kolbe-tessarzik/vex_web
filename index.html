@@ -748,11 +748,17 @@
     async function getDropdownOptions(currentProject) {
       const selected = getSelectedProjects();
       // Map project info into the shape Dropdown expects
-      return await Promise.all(
-        projects
-        .filter(p => (p === currentProject) || !selected.includes(p))
-        .map(async p => ({ text: (await p.name()), path: p.path, value: p }))
-      )
+      return (await Promise.all(
+        projects.map(async p => {
+          const keep = (await p.equals(currentProject)) || !selected.includes(p);
+          if (!keep) return null;
+          return {
+            text: await p.name(),
+            path: p.path,
+            value: p,
+          };
+        })
+      )).filter(Boolean);
     }
 
     async function refreshPickers() {
@@ -1391,7 +1397,7 @@
       await writable.close();
     }
 
-    async function getAllFilePaths(dir_handles, path = null, project_arr = []) {
+    async function findAllProjects(dir_handles, path = null, project_arr = []) {
       if (!dir_handles) {
         return project_arr;
       }
@@ -1416,7 +1422,7 @@
           const new_handles = dir_handles.slice();
           new_handles.push(entry);
           // Recursively call for subdirectories
-          await getAllFilePaths(new_handles, fullPath, project_arr);
+          await findAllProjects(new_handles, fullPath, project_arr);
         }
       }
       return project_arr;
@@ -1432,7 +1438,7 @@
         return;
       }
       directoryHandles.push(dirHandle);
-      projects = await getAllFilePaths(directoryHandles); // BROKEN COME BACK
+      projects = await findAllProjects(directoryHandles); // BROKEN COME BACK
     }
 
     async function importCodeDir(manual = false) {

@@ -1,6 +1,13 @@
 class Project {
+    /*
+    * @constructor
+    * @param {string} path
+    * @param {FileSystemHandle} handle
+    */
     constructor(path, handle) {
+        /** @type {string} */
         this.path = path;
+        /** @type {FileSystemHandle} */
         this.handle = handle;
         if (handle.name.endsWith('.iqpython'))
         {
@@ -16,13 +23,15 @@ class Project {
         }
     }
 
-    async info() {
-        return {
-            name: await this.name(),
-            path: this.path,
-            slot: await this.slot(),
-            handle: this.handle,
-        };
+    /*
+    * @param {Project} other
+    */
+    async equals(other) {
+        return (
+            (other instanceof Project)
+            && (other.path === this.path)
+            && (await other.handle.isSameEntry(this.handle))
+        );
     }
 
     static fromStored(obj) {
