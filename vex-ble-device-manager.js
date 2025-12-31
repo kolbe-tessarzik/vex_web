@@ -6221,7 +6221,7 @@ class VEXBLEDeviceManager {
                 }
                 log3.debug("*****> connecting to device - webble-gatt-uuid", this.device);
                 this.updateConnectionState(BrainConnectionState.Connecting);
-                yield this.delay(1000); // needed to reliabliy connect on some chromebooks
+                //yield this.delay(1000); // needed to reliabliy connect on some chromebooks
                 this.server = yield this.device.gatt.connect().catch((e) => {
                     if (e.name === "TimeoutError") {
                         log3.error("device failed to connect - timeout error", e);
@@ -6232,7 +6232,7 @@ class VEXBLEDeviceManager {
                     }
                     throw e;
                 });
-                yield this.delay(1000);
+                //yield this.delay(1000);
                 yield this.getServices();
                 yield this.getAllCharacteristics();
                 yield this.subscribeToCharacteristics();
@@ -11464,7 +11464,7 @@ function controllerSetButonValue(buttonID, pressed) {
     bleDeviceManager.controllerSetButonValue(buttonID, pressed);
 }
 /**
- * Sets all controll values to their default value (sticks are neutral and buttons are released)
+ * Sets all controller values to their default value (sticks are neutral and buttons are released)
  */
 function controllerClearValues() {
     bleDeviceManager.controllerClearValues();
