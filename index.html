@@ -71,7 +71,7 @@
       display: none;
       justify-content: center;
       align-items: center;
-      z-index: 1000;
+      z-index: 1010;
     }
 
     /* Modal box */
@@ -467,7 +467,7 @@
     }
 
     .shake {
-      animation: shake 0.5s;
+      animation: shake 0.4s;
     }
 
     .action-btn:disabled {
@@ -701,7 +701,7 @@
   <div id="backdrop" class="modal-backdrop">
     <!-- Modal -->
     <div class="modal">
-      <div class="modal-header">
+      <div id="modal-header" class="modal-header">
         Radio Connection Code
       </div>
 
@@ -1055,9 +1055,18 @@
               </g>
             </svg >`;
       openFolderBtn.classList.add("no_display");
-      openFolderBtn.addEventListener("click", () => {
+      openFolderBtn.addEventListener("click", async () => {
         if (openFolderBtn.querySelector('.plus').classList.contains('hidden')) {
-          deleteAllFolders();
+          const result = await deleteAllFolders();
+          if (!result) {
+            openFolderBtn.classList.remove('shake');
+            void openFolderBtn.offsetWidth; // force a repaint
+            openFolderBtn.classList.add('shake');
+            setTimeout(() => {
+              openFolderBtn.classList.remove('shake');
+            }, 400);
+
+          }
         } else {
           openFolder();
         }
@@ -1562,8 +1571,11 @@
     }
 
     async function deleteAllFolders() {
-      if (!directoryHandles) {
-        
+      if (!directoryHandles || directoryHandles.length == 0) {
+        return false;
+      }
+      if (!(await promptForClearFoldersModal())) {
+        return true;
       }
       try {
         await delData('directoryHandles');
@@ -1577,7 +1589,7 @@
       projects = [];
       tbody.innerHTML = "";
       await refreshPickers();
-      console.log("Complete!");
+      return true;
     }
 
     async function loadProjects() {
@@ -1653,7 +1665,7 @@
         let downloadComplete = false;
         let success;
         try {
-          success = await withIdleTimeout(() => progress, downloadProgram(slotIndex, displayName, "python", programData, downloadCallback, "Python"), 1000);
+          success = await withIdleTimeout(() => progress, downloadProgram(slotIndex, displayName, "python", programData, downloadCallback, "Python"), 3000);
         } catch (e) {
           BleProgressUI.setFailure("Download failed");
           setTimeout(BleProgressUI.hide, 2000);
@@ -1726,25 +1738,28 @@
     const modalInput = document.getElementById("modalInput");
     const modalSubmitBtn = document.getElementById("modalSubmitBtn");
     const modalCancelBtn = document.getElementById("modalCancelBtn");
+    const modalHeader = document.getElementById("modal-header");
 
-    function modalPrompt(prompt, regex, input_max_len = 0, default_input = "") {
+    function modalPrompt(prompt, regex, header, input_max_len = 0, default_input = "") {
       return new Promise((resolve, reject) => {
         modalText.textContent = prompt;
         backdrop.style.display = "flex";
         document.body.style.overflow = "hidden";
         modalInput.value = default_input;
+        modalHeader.textContent = header;
         if (input_max_len === null) {
-          console.warn(`Look over here!`);
           modalInput.disabled = true;
           modalInput.style.display = 'none';
           modalSubmitBtn.classList.add("enabled");
           modalSubmitBtn.disabled = false;
+          modalSubmitBtn.textContent = "Yes";
         }
         else {
           modalInput.disabled = false;
           modalInput.style.display = 'block';
           modalSubmitBtn.disabled = true;
           modalSubmitBtn.classList.remove("enabled");
+          modalSubmitBtn.textContent = "Submit";
         }
         if (input_max_len <= 0) {
           modalInput.removeAttribute("maxLength");
@@ -1805,7 +1820,11 @@
             }
           }
           cleanup();
-          resolve(modalInput.value);
+          if (input_max_len !== null) {
+            resolve(modalInput.value);
+          } else {
+            resolve(true);
+          }
         }
 
         function onCancel() {
@@ -1840,11 +1859,15 @@
 
 
     async function promptForConnectionCodeModal() {
-      return modalPrompt("Enter the 4-digit Radio Connection Code displayed on the IQ Brain", /^\d{4}$/, 4);
+      return modalPrompt("Enter the 4-digit Radio Connection Code displayed on the IQ Brain", /^\d{4}$/, "Radio Connection Code", 4);
     }
 
     async function promptForNewNameModal() {
-      return modalPrompt("Update Brain Name", /^\S*$/, 0, attrs.robotname ?? "");
+      return modalPrompt("Update Brain Name", /^\S*$/, "Rename", 0, attrs.robotname ?? "");
+    }
+    
+    async function promptForClearFoldersModal() {
+      return modalPrompt("Are you sure you want to remove all previously selected folders?", /\S\s/, "Erase All?", null);
     }
 
     async function renameBrain() {
@@ -1876,26 +1899,7 @@
       return combinedBuffer;
     }
 
-    const fmt_for_data = {
-      0: ["Axis A", "b"],
-      1: ["Axis B", "b"],
-      2: ["Axis C", "b"],
-      3: ["Axis D", "b"],
-      4: ["Heading", "f"],
-      5: ["Rotation", "f"],
-      6: ["Roll", "f"],
-      7: ["Pitch", "f"],
-      8: ["Yaw", "f"],
-      9: ["ax", "f"],
-      10: ["ay", "f"],
-      11: ["az", "f"],
-      12: ["gx", "f"],
-      13: ["gy", "f"],
-      14: ["gz", "f"],
-      15: ["Distance", "B"],
-      16: ["Hue", "H"],
-      17: ["Brightness", "B"],
-    };
+    const fmt_for_data = {};
     const code_lens = {
       "b": 1,
       "B": 1,
@@ -1935,24 +1939,7 @@
       return func(data, index);
     }
 
-    const data_dict = {
-      "Axis A": 0,
-      "Axis B": 0,
-      "Axis C": 0,
-      "Axis D": 0,
-      "Heading": 0,
-      "Rotation": 0,
-      "Roll": 0,
-      "Pitch": 0,
-      "Yaw": 0,
-      "ax": 0,
-      "ay": 0,
-      "az": 0,
-      "gx": 0,
-      "gy": 0,
-      "gz": 0,
-      "Distance": 0,
-    };
+    const data_dict = {};
 
     let graph_data = Array.from({ length: 40 });
     for (let i = 0; i < graph_data.length; i++) {
@@ -1962,22 +1949,28 @@
     function update_graph() {
       graph_data.push(graph_data.shift());
       graph_data[graph_data.length - 1] = { ...data_dict };
+
     }
 
+    /**
+    * @param {DataView} data
+    */
     function unpack_vals(data, index, length) {
-      const view = new DataView(data.buffer, index, length);
+      // const view = new DataView(data.buffer, data.byteOffset + index, length);
 
-      for (let i = index; i < index + length && i < data.byteLength; i++) {
-        const code = data.getUint16(i);
+      for (let i = index; i < index + length && i < data.byteLength;) {
+        let code;
+        [code, i] = [data.getUint16(i), i+2];
+        // [code, i] = GetVarInt(data, i);
         const fmt_list = fmt_for_data[code];
-        if (fmt_list === null) {
+        if (fmt_list === undefined) {
           console.warn(`Code ${code} doesn't exist`);
           return;
         }
         const [name, fmt] = fmt_for_data[code];
         const val_len = code_lens[fmt];
-        data_dict[name] = get_data(data, i + 2, fmt);
-        i += (val_len + 1);
+        data_dict[name] = get_data(data, i, fmt);
+        i += val_len;
       }
       // display data
       let data_str = "";
@@ -1987,53 +1980,132 @@
       dataEl.textContent = data_str;
     }
 
+    /**
+    * @param {DataView} msg
+    */
+    function process_format_msg(msg) {
+      for (let i = 0; i < msg.byteLength;) {
+        let code;
+        [code, i] = [msg.getUint16(i), i+2]; 
+        // [code, i] = GetVarInt(msg, i);
+        const fmt = msg.getUint8(i);
+        i += 1;
+
+        const j = msg.byteOffset + i;
+        const nullByteIndex = new Uint8Array(msg.buffer).indexOf(0, j)
+        if (nullByteIndex >= 0) {
+          const nameLength = nullByteIndex - j;
+          const name = (new TextDecoder()).decode(new DataView(msg.buffer, j, nameLength));
+          fmt_for_data[code] = [name, String.fromCharCode(fmt)];
+          data_dict[name] = 0;
+          i += (nameLength + 1);
+        } else {
+          throw Error(`Can't find null byte in msg:`, msg);
+        }
+      }
+    }
+
+    function process_special_message(cmd, payload) {
+      if (cmd === 0x44) {
+        // data message
+        unpack_vals(payload, 0, payload.byteLength);
+        update_graph();
+      } else if (cmd === 0x46) {
+        process_format_msg(payload);
+      } else {
+        console.warn(`Unknown special message cmd: ${cmd}`);
+      }
+    }
+
+    /**
+    * @param {DataView} dv
+    * @param {Number} offset
+    */
+    function GetVarInt(dv, offset) {
+      let result = dv.getUint8(offset);
+      if (result & 0x80) {
+        // 16 bit value
+        result = dv.getUint16(offset) & 0x7FFF;
+        return [result, offset+2];
+      } else {
+        // 8 bit value
+        return [result, offset+1];
+      }
+    }
+
+    function checkForHeader(data, offset, header) {
+      let headerIndex = 0;
+      for (let i = offset; i < data.byteLength; i++) {
+        if (data.getUint8(i) === header[headerIndex]) {
+          headerIndex++;
+          if (headerIndex >= header.length) {
+            return (i - header.length) + 1;
+          }
+        } else {
+          headerIndex = 0;
+        }
+      }
+      if (headerIndex !== null) {
+        return data.byteLength - headerIndex;
+      }
+      return null;
+    }
+
+    function appendToStdout(text) {
+      // Check if the user is already at or near the bottom (e.g., within 1 pixel inaccuracy)
+      const isScrolledToBottom = stdout.scrollHeight - stdout.clientHeight <= stdout.scrollTop + 1;
+      // append new text
+      stdout.textContent += text;
+      // Only scroll to the bottom if they were already there
+      if (isScrolledToBottom) {
+        stdout.scrollTop = stdout.scrollHeight;
+      }
+    }
+
     function stdout_handler(event) {
       const combinedBuffer = combineArrayBuffers(byteBuffer, event.target.value.buffer);
       // clear byteBuffer, if we still need it, we will write into it again
       byteBuffer = new ArrayBuffer(0);
-      const value = new DataView(combinedBuffer);
-      //console.log(value);
-      for (let i = 0; i < value.byteLength; i++) {
-        const byte = value.getUint8(i);
-        if (byte == 0) {
-          // null byte starts new data packet
-          // next two bytes are length
-          if (i + 2 < value.byteLength) {
-            let pack_len = value.getUint16(i + 1);
-            if (i + pack_len < value.byteLength) {
-              // this is a full packet
-              unpack_vals(value, i + 3, pack_len - 2);
-              i += pack_len;
-            }
-            else {
-              // incomplete packet
-              // store in byteBuffer until next packet
-              byteBuffer = value.buffer.slice(i);
-              return;
-            }
-          }
-          else {
-            // incomplete packet, can't even read pack_len
+      const dv = new DataView(combinedBuffer);
+      for (let i = 0; i < dv.byteLength;) {
+        const headerOffset = checkForHeader(dv, i, [0xc0, 0xde]);
+        if (headerOffset === null) {
+          // no header found
+          // print all bytes to console
+          const text = new TextDecoder().decode(new DataView(dv.buffer, i))
+          appendToStdout(text);
+          return;
+        } else {
+          // print bytes up to headerOffset to console
+          const text = new TextDecoder().decode(new DataView(dv.buffer, i, (headerOffset - i)))
+          appendToStdout(text);
+
+          i = headerOffset;
+          if (   ((i + 3) < dv.byteLength)
+              && (   ((dv.getUint8(i + 3) & 0x80) === 0x00) // payload_len is 1 byte
+                  || ((i + 4) < dv.byteLength)) // payload_len is 2 bytes, and that byte is available
+            ) {
+              const cmd = dv.getUint8(i + 2);
+              const [payload_len, payload_offset] = GetVarInt(dv, i + 3);
+              if ((payload_offset + payload_len) <= dv.byteLength) {
+                // full payload present
+                process_special_message(cmd, new DataView(dv.buffer, payload_offset, payload_len));
+                // unpack_vals(dv, i + 3, pack_len - 2);
+                i = payload_offset + payload_len;
+              } else {
+                // incomplete packet
+                // store in byteBuffer until next packet
+                byteBuffer = dv.buffer.slice(i);
+                return;
+              }
+          } else {
+            // incomplete packet
             // store in byteBuffer until next packet
-            byteBuffer = value.buffer.slice(i);
+            byteBuffer = dv.buffer.slice(i);
             return;
           }
         }
-        else {
-          // non null byte, print in console
-          // Check if the user is already at or near the bottom (e.g., within 1 pixel inaccuracy)
-          const isScrolledToBottom = stdout.scrollHeight - stdout.clientHeight <= stdout.scrollTop + 1;
-
-          const charStr = String.fromCharCode(byte);
-          stdout.textContent += charStr;
-
-          // Only scroll to the bottom if they were already there
-          if (isScrolledToBottom) {
-            stdout.scrollTop = stdout.scrollHeight;
-          }
-        }
       }
-
     }
 
     // =======================================================
@@ -2072,7 +2144,7 @@
           pair_code = null;
         }
       } while (pair_code === null)
-
+      
       // pairing successful; store/update the code
       log(`Storing code: ${pair_code} to key: ${pair_key}`);
       localStorage.setItem(pair_key, pair_code);
@@ -2243,7 +2315,7 @@
       frozen = !frozen;
     }
 
-    function chart_loop() {
+    async function chart_loop() {
       if (myChart !== null) {
         update_graph();
         if (!frozen) {
@@ -2251,6 +2323,7 @@
           if (cookie === null) {
             console.log("Null cookie")
             cookie = {};
+            localStorage.setItem('GraphShownLines', "{}");
           }
           var cookie_changed = false;
           for (var i = 0; i < myChart.data.datasets.length; i++) {
@@ -2298,8 +2371,8 @@
     snapBtn.addEventListener('click', toggleFreezeChart);
     snapBtn.style.display = "none";
     window.addEventListener('resize', resizeChart);
-    window.onload = chart_loop;
     window.projects = projects;
+    chart_loop();
   </script>
 </body>
 

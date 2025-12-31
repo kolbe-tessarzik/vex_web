@@ -198,9 +198,11 @@ def print_data():
 def main():
     brain.buttonUp.pressed(print_num)
     brain.buttonDown.pressed(print_something)
-    send_data_format()
     while True:
-        print_data()
-        wait(100, MSEC)
+        send_data_format()
+        for i in range(10):
+            print_data()
+            wait(100, MSEC)
+
 
 main()
