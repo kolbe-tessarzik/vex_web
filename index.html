@@ -1952,6 +1952,28 @@
 
     }
 
+    function updateDatasets() {
+      if (myChart === null) return;
+      const cookie = JSON.parse(localStorage.getItem('GraphShownLines')) ?? {};
+      myChart.data.datasets = [];
+      let i = 0;
+      for (const name of Object.keys(data_dict)) {
+        const color = brightColors[i % brightColors.length];
+        const dataset = {
+          label: name,
+          data: new Array(40).fill(0),
+          yAxisID: 'y',
+          borderColor: color,
+          backgroundColor: color.replace('1)', '0.2)'),
+          hidden: (cookie[name]) || (name != 'Heading'),
+          fill: false,
+          tension: 0,
+        };
+        myChart.data.datasets.push(dataset);
+        i++;
+      }
+    }
+
     /**
     * @param {DataView} data
     */
@@ -2001,6 +2023,7 @@
           throw Error(`Can't find null byte in msg:`, msg);
         }
       }
+      updateDatasets();
     }
 
     function process_special_message(cmd, payload) {
@@ -2317,13 +2340,13 @@
       if (myChart !== null) {
         update_graph();
         if (!frozen) {
+          var cookie_changed = false;
           var cookie = JSON.parse(localStorage.getItem('GraphShownLines'));
           if (cookie === null) {
             console.log("Null cookie")
             cookie = {};
-            localStorage.setItem('GraphShownLines', "{}");
+            cookie_changed = true;
           }
-          var cookie_changed = false;
           for (var i = 0; i < myChart.data.datasets.length; i++) {
             const data_name = myChart.data.datasets[i].label;
             const meta = myChart.getDatasetMeta(i);
@@ -2335,8 +2358,8 @@
             myChart.data.datasets[i].data = graph_data.map(d => d[data_name]);
           }
 
-          myChart.update('none');
-          if (cookie_changed || cookie == {}) {
+          myChart.update();
+          if (cookie_changed) {
             localStorage.setItem('GraphShownLines', JSON.stringify(cookie));
           }
         }

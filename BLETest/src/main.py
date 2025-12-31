@@ -139,8 +139,8 @@ idc = {
     14: ("gz", "f",       lambda: brain_inertial.gyro_rate(AxisType.ZAXIS)),
 }
 
-for i in range(15, 100):
-    idc[i] = ("Test {i}".format(i=i), "f", lambda: urandom.uniform(-180, 180) )
+# for i in range(15, 100):
+#     idc[i] = ("Test {i}".format(i=i), "f", lambda: urandom.uniform(-180, 180) )
 
 num = 0
 
