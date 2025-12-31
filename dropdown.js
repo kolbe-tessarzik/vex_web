@@ -3,6 +3,19 @@ let dropdownRequiredStyle = `
             position: relative;
         }
 
+        .custom-select.disabled,
+        .custom-select.disabled * {
+            opacity: 0.65;             /* visually dull */
+            user-select: none;        /* optional, prevent text selection */
+            filter: grayscale(65%);   /* optional, slightly desaturate */
+            border-color: #ddd;       /* subtle border change */
+            background-color: #f9f9f9; /* subtle off-white */
+            cursor: default;      /* arrow cursor */
+            pointer-events: auto; /* allow mouseover, mousemove, etc */
+
+        }
+
+
         .select-selected {
             padding: 10px;
             border: 1px solid #ccc;
@@ -71,13 +84,23 @@ let dropdownRequiredStyle = `
 let dropdownStyleInjected = false;
 
 class Dropdown {
-    constructor(options, outerDiv = null) {
+    constructor(options, outerDiv = null, other = {}) {
         if (outerDiv === null) {
             this.container = document.createElement('div');
             document.body.appendChild(this.container);
         } else {
             this.container = outerDiv;
         }
+        this.defaultText = other.defaultText ?? "No options available";
+        this.emptyDisplayText = other.emptyDisplayText ?? "No options available";
+        this._hoverCallback = () => { };
+        this._unhoverCallback = () => { };
+        this.container.addEventListener('mouseenter', () => {
+            this._hoverCallback();
+        });
+        this.container.addEventListener('mouseleave', () => {
+            this._unhoverCallback();
+        });
         this._empty = true;
         this._createElements();
         this._initDropdown();
@@ -86,7 +109,6 @@ class Dropdown {
     }
 
     _createElements() {
-        console.log("Creating . . .");
         // wipe away anything already inside the div
         this.container.innerHTML = "";
 
@@ -98,7 +120,7 @@ class Dropdown {
         this.selectSelected.setAttribute('role', 'combobox');
         this.selectSelected.setAttribute('aria-haspopup', 'listbox');
         this.selectSelected.setAttribute('aria-expanded', 'false');
-        this.selectSelected.innerHTML = `Select an option<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 8" width="12" height="8" class="my-svg" aria-hidden="true"><path d="M1 1l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>`;
+        this.selectSelected.innerHTML = `${this.defaultText}<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 8" width="12" height="8" class="my-svg" aria-hidden="true"><path d="M1 1l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>`;
 
         // create selection options
         this.selectItems = document.createElement('div');
@@ -112,7 +134,6 @@ class Dropdown {
         // inject them into the outer div
         this.container.append(this.selectSelected, this.selectItems);
         this.container.classList.add('custom-select');
-        console.log(`Done! ${this.selectItems}`);
     }
 
     _initDropdown() {
@@ -133,6 +154,10 @@ class Dropdown {
         // click opens/closes
         this.selectSelected.addEventListener('click', async (e) => {
             e.preventDefault();
+            if (this._empty) {
+                this.close();
+                return;
+            }
             if (this._empty) {
                 try {
                     await this._emptyCallback();
@@ -176,6 +201,14 @@ class Dropdown {
 
     setEmptyCallback(callback) {
         this._emptyCallback = callback;
+    }
+
+    setHoverCallback(callback) {
+        this._hoverCallback = callback;
+    }
+    
+    setUnhoverCallback(callback) {
+        this._unhoverCallback = callback;
     }
 
     // Open dropdown and update aria + visuals
@@ -261,9 +294,11 @@ class Dropdown {
         if (!options || !Array.isArray(options) || options.length === 0) {
             // Treat empty arrays as "no options" so the Dropdown can
             // invoke its empty callback (e.g., to prompt user to import projects).
+            this.container.classList.add('disabled');
             this._empty = true;
-            options = [{ path: '', text: 'No options available', value: null }];
+            options = [{ path: '', text: this.emptyDisplayText, value: null }];
         } else {
+            this.container.classList.remove('disabled');
             this._empty = false;
             options = options.slice();
         }
@@ -289,6 +324,10 @@ class Dropdown {
 
             // Use an arrow function so `this` refers to the Dropdown instance
             const doSelect = () => {
+                if (this._empty) {
+                    this.close();
+                    return;
+                }
                 // update displayed selection
                 this.selectSelected.innerHTML = item.innerHTML;
                 this.selectSelected.innerHTML += `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 8" width="12" height="8" class="my-svg" aria-hidden="true"><path d="M1 1l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
@@ -300,7 +339,7 @@ class Dropdown {
                 // clear focused state
                 this._clearFocusedItem();
                 // set selected value
-                this.selectedValue = optionData.value || optionData.text;
+                this.selectedValue = optionData.value;
                 // mark aria-selected
                 this.selectItems.querySelectorAll('.list-el').forEach(el => el.setAttribute('aria-selected', 'false'));
                 item.setAttribute('aria-selected', 'true');
@@ -375,23 +414,25 @@ class Dropdown {
         this._focusItemElement(items[idx]);
     }
 
-    setValue(value) {
-        if (!this._options) return;
-        const opt = this._options.find(o => (o.value || o.text) === value);
+    setValue(opt) {
         if (!opt) return;
         // set displayed selection
         this.selectSelected.innerHTML = `<span class="large-text">${opt.text}</span><span class="my-svg"></span>`;
         // append caret svg similar to click
         this.selectSelected.innerHTML = `<span class="large-text">${opt.text}</span><span class="small-text">${opt.path}</span><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 8" width="12" height="8" class="my-svg" aria-hidden="true"><path d="M1 1l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-        this.selectedValue = opt.value || opt.text;
+        this.selectedValue = opt.value;
     }
 
     clearSelection() {
         this.selectedValue = undefined;
-        this.selectSelected.innerHTML = 'Select an option<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 8" width="12" height="8" class="my-svg" aria-hidden="true"><path d="M1 1l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>';
+        this.selectSelected.innerHTML = `${this.defaultText}<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 8" width="12" height="8" class="my-svg" aria-hidden="true"><path d="M1 1l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>`;
     }
 
     onSelect(handler) {
         this.container.addEventListener('dropdown-select', (e) => handler(e.detail));
+    }
+
+    getEmpty() {
+        return this._empty;
     }
 }

@@ -57,6 +57,12 @@
       align-items: center;
     }
 
+    .folder-icon {
+      width: 36px;
+      height: 36px;
+      pointer-events: none;
+    }
+
     /* Dimmed background */
     .modal-backdrop {
       position: fixed;
@@ -381,8 +387,9 @@
 
     .remove-btn,
     .action-btn,
-    .slot-btn {
-        border-radius: 4px;
+    .slot-btn,
+    .openFolder-btn {
+        border-radius: 8px;
         margin-right: 4px;
         cursor: pointer;
         font-size: 14px;
@@ -420,7 +427,7 @@
     }
 
     /* action buttons: square, light gray background, icon and label colored via --icon-color */
-    .action-btn, .slot-btn {
+    .action-btn, .slot-btn, .openFolder-btn {
         background: #f5f5f5;
         border: 1px solid #ddd;
         color: #333;
@@ -443,9 +450,24 @@
       60% { transform: translateY(-8px); }
     }
 
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-5px); }
+      40%, 80% { transform: translateX(5px); }
+    }
+
+
     /* When button B is hovered AND disabled, make button A bounce */
     .bounce {
       animation: bounce 0.6s infinite;
+    }
+
+    .bounce-slow {
+      animation: bounce 1.2s infinite;
+    }
+
+    .shake {
+      animation: shake 0.5s;
     }
 
     .action-btn:disabled {
@@ -517,9 +539,11 @@
         color: #777
     }
 
-    .remove-btn.hidden,
-    .action-btn.hidden,
-    .slot-btn.hidden {
+    .hidden {
+        visibility: hidden;
+    }
+
+    .no_display {
         display: none;
     }
 
@@ -595,7 +619,6 @@
         line-height: 1;
         transform: translate(25%, 80%);
     }
-    .slot-btn.empty .slot-number { opacity: 0.6; }
 
     /* Slot picker floating list styles */
     .slot-picker-list {
@@ -660,7 +683,6 @@
 
     <div class="row">
       <button id="clearBtn">Clear</button>
-      <button id="selectFolder">Open Folder</button>
       <!-- <button id="clearDirectories">Clear Directories</button> -->
     </div>
   </div>
@@ -722,26 +744,56 @@
   <script type="module">
     // await SimulateControllerThroughCDC({'leftAxisX': 0.5, 'leftAxisY': 0.5, 'rightAxisX': 0.5, 'rightAxisY': 0.5, 'SEL':0, 'R3':1, 'L3':1, 'RU':1, 'RD':1, 'LU':1, 'LD':1, 'EU':1, 'FU':1, 'ED':1, 'FD':1});
 
+    // =======================================================
+    // DOM Elements
+    // =======================================================
+    const statusEl = document.getElementById("status");
+    const connectBtn = document.getElementById("connectBtn");
+    const renameBtn = document.getElementById("rename");
+    const slotPicker = document.getElementById("slotPicker");
+    const clearBtn = document.getElementById('clearBtn')
+    const stdout = document.getElementById('stdout');
+    const logEl = document.getElementById('log');
+    const dataEl = document.getElementById('structured');
+    const overlay = document.getElementById('overlay');
+    const container = document.getElementById('chartContainer');
+    const canvasEl = document.getElementById('myChart');
+    const snapBtn = document.getElementById('snapshot');
+    const canvasButton = document.getElementById('canvasButton');
+
+    // =======================================================
+    // Global variables
+    // =======================================================
     /**
-    * A global object that maps project paths (strings) to file (.iqpython) or directory (vscode project) handles.
+    * projects
     * @global
-    * @type {Object.<string, (FileSystemFileHandle|FileSystemDirectoryHandle)>}
+    * @type {Person[]}
     */
     let projects = [];
+
     let directoryHandles = [];
-    let allDisabled = true;
+    let attrs = {};
 
     /*=============================================================================
     * Table with program pickers and action buttons
     *============================================================================*/
     const tbody = document.querySelector("#pickerTable tbody");
-    // Set to true to start with all projects pre-selected for layout preview
-    const INIT_WITH_ALL = false;
 
     function getSelectedProjects() {
-      return Array.from(tbody.querySelectorAll('.custom-select'))
+      const selectedProjects = Array.from(tbody.querySelectorAll('.custom-select'))
         .map(c => c._dropdown && c._dropdown.selectedValue)
         .filter(v => v);
+
+      putData('selectedProjects', selectedProjects);
+      return selectedProjects;
+    }
+
+    async function pickerDataForProject(project) {
+      return {
+        text: await project.name(),
+        path: project.path,
+        value: project,
+      };
     }
 
     // Build dropdown options for a row, keeping currentSelected available
@@ -750,13 +802,9 @@
       // Map project info into the shape Dropdown expects
       return (await Promise.all(
         projects.map(async p => {
-          const keep = (await p.equals(currentProject)) || !selected.includes(p);
+          const keep = (await p.equals(currentProject)) || !(await asyncFind(selected, async (x) => p.equals(x)));
           if (!keep) return null;
-          return {
-            text: await p.name(),
-            path: p.path,
-            value: p,
-          };
+          return await pickerDataForProject(p);
         })
       )).filter(Boolean);
     }
@@ -768,19 +816,19 @@
         const current = dropdown.selectedValue;
         const opts = await getDropdownOptions(current);
         dropdown.update_options(opts);
-        if (current) dropdown.setValue(current);
+        if (current) dropdown.setValue(await pickerDataForProject(current));
       });
       // wait for trailing-row logic to finish so callers see a stable table
       await ensureTrailingEmptyRow();
     }
 
-    function getAvailableOptions() {
+    async function getAvailableOptions() {
       const selected = getSelectedProjects();
-      return projects.filter(p => !selected.includes(p));
+      return await asyncFilter(projects, async p => !(await asyncSome(selected, (x) => p.equals(x))));
     }
 
     async function ensureTrailingEmptyRow() {
-      const available = getAvailableOptions();
+      const available = await getAvailableOptions();
       // Find rows that are "empty" (no selected value)
       const emptyRows = Array.from(tbody.querySelectorAll('tr')).filter(row => {
         const div = row.querySelector('.custom-select');
@@ -897,64 +945,21 @@
     async function createRow(isLast = false, initialSelectedProject = null) {
       const tr = document.createElement("tr");
 
-      // Buttons
-      const removeBtn = document.createElement("button");
-      removeBtn.className = "remove-btn";
-      removeBtn.setAttribute('aria-label', 'Remove');
-      // inline SVG provided by user, scaled down to fit the control
-      removeBtn.innerHTML = `<span class="control-inner"><svg  xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
-          <circle class="remove-icon-circle" cx="12" cy="12" r="12"/>
-          <line class="remove-icon-line" x1="7" y1="7" x2="17" y2="17"/>
-          <line class="remove-icon-line" x1="17" y1="7" x2="7" y2="17"/>
-          </svg></span>`;
-      // hide remove button for empty rows initially
-      removeBtn.classList.add("hidden");
       // create dropdown container and instance
       const ddContainer = document.createElement('div');
       ddContainer.classList.add('custom-select');
       // Await the options so we pass an actual array to Dropdown (not a Promise)
       const initialOpts = await getDropdownOptions(initialSelectedProject);
-      const dropdown = new Dropdown(initialOpts, ddContainer);
-      dropdown.onSelect = (val) => {
-        alert(`Selected: ${val}`);
-      };
-      dropdown.setEmptyCallback(importCodeDir);
+      const dropdown = new Dropdown(initialOpts, ddContainer, {emptyDisplayText: 'Please select a folder ➡️'});
       // keep reference for refresh logic
       ddContainer._dropdown = dropdown;
 
-      const playBtn = document.createElement("button");
-      playBtn.className = "action-btn run hidden";
-      playBtn.setAttribute('aria-label', 'Run');
-      playBtn.innerHTML = `
-          <span class="control-inner"><svg viewBox="0 0 16 19" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M277.71,30.091a.8.8,0,0,1,0,1.433l-7.206,4.5-6.674,4.17c-.675.422-1.679.048-1.679-.626V22.3c0-.779,1.16-1.211,1.941-.723l6.411,4.006Z" transform="translate(-262.152 -21.375)" fill="currentColor"/></svg>
-          <span class='btn-label'>RUN</span></span>
-      `;
-
-      const stopBtn = document.createElement("button");
-      stopBtn.className = "action-btn stop hidden";
-      stopBtn.setAttribute('aria-label', 'Stop');
-      stopBtn.innerHTML = `
-          <span class="control-inner"><svg viewBox="0 0 19 19" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><rect width="19" height="19" rx="2" fill="currentColor"/></svg>
-          <span class='btn-label'>STOP</span></span>
-      `;
-
-      const downloadBtn = document.createElement("button");
-      downloadBtn.className = "action-btn download hidden";
-      downloadBtn.setAttribute('aria-label', 'Download');
-      downloadBtn.innerHTML = `
-          <span class="control-inner"><svg viewBox="0 0 24 20" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M-1793,3924a2,2,0,0,1-2-2v-5a2,2,0,0,1,2-2h3.482l5.235,6.406.206.2a1.652,1.652,0,0,0,1.066.39,1.667,1.667,0,0,0,1.278-.6l5.231-6.4h3.5a2,2,0,0,1,2,2v5a2,2,0,0,1-2,2Zm16-3h3v-3h-3Zm-15,0h3v-3h-3Zm8.494-1.235-6.358-7.783a.606.606,0,0,1,.505-.982H-1787v-5a2,2,0,0,1,2-2h4a2,2,0,0,1,2,2v5h2.359a.606.606,0,0,1,.5.981l-6.361,7.784a.652.652,0,0,1-.505.235A.649.649,0,0,1-1783.506,3919.765Z" transform="translate(1795 -3904)" fill="currentColor"/></svg>
-          <span class='btn-label'>LOAD</span></span>
-      `;
-
       const slotBtn = document.createElement("button");
-      slotBtn.className = "slot-btn empty";
+      slotBtn.className = "slot-btn";
       slotBtn.setAttribute('aria-label', 'Slot');
       // wrap slot icon in control-inner so it can slide in visually
-      slotBtn.innerHTML = `<span class="control-inner"></span>`;
-      slotBtn.querySelector('.control-inner').appendChild(makeSlotIcon('2'));
-      // hide slot button for empty rows until a program is selected
-      slotBtn.classList.add('hidden');
+      slotBtn.innerHTML = `<span class="control-inner in"></span>`;
+      slotBtn.querySelector('.control-inner').appendChild(makeSlotIcon('1'));
       // clicking the slot button should open a small slot-picker dropdown
       slotBtn.addEventListener('click', (ev) => {
         ev.stopPropagation();
@@ -964,64 +969,216 @@
           slotBtn.querySelector('.slot-number').textContent = num;
           slotBtn.classList.remove('empty');
           const project = ddContainer._dropdown.selectedValue;
-          if (!project) {
-            console.warn("No program selected to download");
+          if (project) {
+            await project.setSlot(num);
           }
-          await project.setSlot(num);
         });
       });
 
+      const playBtn = document.createElement("button");
+      playBtn.className = "action-btn run";
+      playBtn.setAttribute('aria-label', 'Run');
+      playBtn.innerHTML = `<span class="control-inner in">
+            <svg viewBox="0 0 16 19" xmlns="http://www.w3.org/2000/svg"
+              aria-hidden="true" focusable="false">
+              <path d="M277.71,30.091a.8.8,0,0,1,0,1.433l-7.206,4.5-6.674,4.17c-.675.422-1.679.048-1.679-.626V22.3c0-.779,1.16-1.211,1.941-.723l6.411,4.006Z" transform="translate(-262.152 -21.375)" fill="currentColor"/>
+            </svg>
+            <span class='btn-label'>RUN</span>
+          </span>`;
+      playBtn.disabled = !bleConnected();
+
+      const stopBtn = document.createElement("button");
+      stopBtn.className = "action-btn stop";
+      stopBtn.setAttribute('aria-label', 'Stop');
+      stopBtn.innerHTML = `<span class="control-inner in">
+            <svg viewBox="0 0 19 19" xmlns="http://www.w3.org/2000/svg"
+              aria-hidden="true" focusable="false">
+              <rect width="19" height="19" rx="2" fill="currentColor"/>
+            </svg>
+            <span class='btn-label'>STOP</span>
+          </span>`;
+      stopBtn.disabled = !bleConnected();
+
+      const downloadBtn = document.createElement("button");
+      downloadBtn.className = "action-btn download";
+      downloadBtn.setAttribute('aria-label', 'Download');
+      downloadBtn.innerHTML = `
+          <span class="control-inner in">
+            <svg viewBox="0 0 24 20" xmlns="http://www.w3.org/2000/svg"
+              aria-hidden="true" focusable="false">
+              <path d="M-1793,3924a2,2,0,0,1-2-2v-5a2,2,0,0,1,2-2h3.482l5.235,6.406.206.2a1.652,1.652,0,0,0,1.066.39,1.667,1.667,0,0,0,1.278-.6l5.231-6.4h3.5a2,2,0,0,1,2,2v5a2,2,0,0,1-2,2Zm16-3h3v-3h-3Zm-15,0h3v-3h-3Zm8.494-1.235-6.358-7.783a.606.606,0,0,1,.505-.982H-1787v-5a2,2,0,0,1,2-2h4a2,2,0,0,1,2,2v5h2.359a.606.606,0,0,1,.5.981l-6.361,7.784a.652.652,0,0,1-.505.235A.649.649,0,0,1-1783.506,3919.765Z" transform="translate(1795 -3904)" fill="currentColor"/>
+            </svg>
+            <span class='btn-label'>LOAD</span>
+          </span>
+      `;
+      downloadBtn.disabled = true;
+      downloadBtn.classList.add("hidden");
+
+      const removeBtn = document.createElement("button");
+      removeBtn.className = "remove-btn";
+      removeBtn.setAttribute('aria-label', 'Remove');
+      // inline SVG provided by user, scaled down to fit the control
+      removeBtn.innerHTML = `<span class="control-inner">
+            <svg xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24" width="20" height="20"
+              aria-hidden="true" focusable="false">
+              <circle class="remove-icon-circle" cx="12" cy="12" r="12"/>
+              <line class="remove-icon-line" x1="7" y1="7" x2="17" y2="17"/>
+              <line class="remove-icon-line" x1="17" y1="7" x2="7" y2="17"/>
+            </svg>
+          </span>`;
+      // hide remove button for empty rows initially
+      removeBtn.classList.add("no_display");
+
+      const openFolderBtn = document.createElement("button");
+      openFolderBtn.className = "openFolder-btn";
+      openFolderBtn.setAttribute('aria-label', 'Open Folder');
+      openFolderBtn.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg"
+              viewBox = "0 0 80 80"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="6"
+              width="32"
+              height="32">
+              <rect class="hidden" width="100%" height="100%" stroke="none" fill="#FFFFFF" />
+              <path d="
+                M10,30 v20 q0,10 10,10 h40 q10,0 10,-10 v-20 q0,-10 -10,-10 h-20 q0,-10 -10,-10 h-10 q-10,0 -10,10z"/>
+              <g class="plus">
+                <circle cx="57.5" cy="52.5" r="20" fill="#2ecc71" stroke="none"/>
+                <rect x="47.5" y="49.5" width="20" height="6" rx="3.0" fill="#fff" stroke="none"/>
+                <rect x="54.5" y="42.5" width="6" height="20" rx="3.0" fill="#fff" stroke="none"/>
+              </g>
+              <g class="minus">
+                <circle cx="57.5" cy="52.5" r="20" fill="#e74c3c" stroke="none"/>
+                <rect x="47.5" y="49.5" width="20" height="6" rx="3.0" fill="#fff" stroke="none"/>
+              </g>
+            </svg >`;
+      openFolderBtn.classList.add("no_display");
+      openFolderBtn.addEventListener("click", () => {
+        if (openFolderBtn.querySelector('.plus').classList.contains('hidden')) {
+          deleteAllFolders();
+        } else {
+          openFolder();
+        }
+      });
+      openFolderBtn.querySelector('.minus').classList.add('hidden');
+      tr.mouseOverBtn = false;
+      window.shiftKeyDown = false;
+      openFolderBtn.addEventListener('mouseenter', (e) => {
+        tr.mouseOverBtn = true;
+        if (window.shiftKeyDown) {
+          openFolderBtn.querySelector('.plus').classList.add('hidden');
+          openFolderBtn.querySelector('.minus').classList.remove('hidden');
+        }
+      });
+      openFolderBtn.addEventListener('mouseleave', (e) => {
+        tr.mouseOverBtn = false;
+        openFolderBtn.querySelector('.plus').classList.remove('hidden');
+        openFolderBtn.querySelector('.minus').classList.add('hidden');
+
+      });
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 'Shift') {
+          window.shiftKeyDown = true;
+          if (tr.mouseOverBtn) {
+            openFolderBtn.querySelector('.plus').classList.add('hidden');
+            openFolderBtn.querySelector('.minus').classList.remove('hidden');
+          }
+        }
+      });
+      window.addEventListener('keyup', (e) => {
+        if (e.key === 'Shift') {
+          window.shiftKeyDown = false;
+          if (tr.mouseOverBtn) {
+            openFolderBtn.querySelector('.plus').classList.remove('hidden');
+            openFolderBtn.querySelector('.minus').classList.add('hidden');
+          }
+        }
+      });
+
+      ddContainer._dropdown.setHoverCallback(() => {
+        if (ddContainer._dropdown.getEmpty()) {
+          openFolderBtn.classList.add('bounce');
+        }
+      });
+
+      ddContainer._dropdown.setUnhoverCallback(() => {
+        openFolderBtn.classList.remove('bounce');
+      });
+
+
       const rowTd = document.createElement("td");
       rowTd.classList.add("name-cell");
-      rowTd.append(playBtn, stopBtn, downloadBtn, slotBtn, ddContainer, removeBtn);
+      rowTd.append(slotBtn, playBtn, stopBtn, downloadBtn, ddContainer, removeBtn, openFolderBtn);
       tr.append(rowTd);
 
       // Make bouncy connect button effect on play/stop/download disabled button hover
       [playBtn, stopBtn, downloadBtn].forEach(btnToBounce => {
-        btnToBounce.disabled = allDisabled;
         btnToBounce.addEventListener('mouseenter', () => {
-          if (btnToBounce.disabled) {
+          if (btnToBounce.disabled && (!bleConnected())) {
             connectBtn.classList.add('bounce');
           }
         });
         btnToBounce.addEventListener('mouseleave', () => {
           connectBtn.classList.remove('bounce');
+          ddContainer.classList.remove('bounce');
         });
+      });
+      downloadBtn.addEventListener('mouseenter', () => {
+        if (downloadBtn.disabled && bleConnected()) {
+          ddContainer.classList.add('bounce');
+        }
       });
 
       // If an initial selection is provided, set the row state accordingly (no change event)
       if (initialSelectedProject) {
-        const item = projects.find(d => d.name === initialSelectedProject);
-        if (item) {
-          dropdown.setValue(initialSelectedProject);
-          dropdown.selectedValue = initialSelectedProject;
+          dropdown.setValue(await pickerDataForProject(initialSelectedProject));
+          if (bleConnected()) {
+            downloadBtn.disabled = false;
+            downloadBtn.classList.remove("hidden");
+          }
           // set slot button number and mark as filled
-          slotBtn.querySelector('.slot-number').textContent = item.slot;
+          slotBtn.querySelector('.slot-number').textContent = await initialSelectedProject.slot();
           slotBtn.classList.remove("empty");
           // animate controls in if they're hidden
-          if (removeBtn.classList.contains('hidden')) animateControlsIn();
-        }
+          if (removeBtn.classList.contains('no_display')) revealControls();
+      } else {
+        openFolderBtn.classList.remove("no_display");
       }
 
       // Listen for selection events from the Dropdown instance
       ddContainer.addEventListener('dropdown-select', async (e) => {
-        const val = e.detail.value;
-        if (!val) return;
-        const item = projects.find(p => p === val);
+        const project = e.detail.value;
+        if (!project) return;
         // update the slot button display and show it
-        slotBtn.querySelector('.slot-number').textContent = await item.slot();
+        slotBtn.querySelector('.slot-number').textContent = await project.slot();
         slotBtn.classList.remove('empty');
+        // enable the download button (if connected)
+        if (bleConnected()) {
+          downloadBtn.disabled = false;
+          downloadBtn.classList.remove("hidden");
+        }
         // animate controls in (only if not already visible)
-        if (removeBtn.classList.contains('hidden')) animateControlsIn();
-
+        if (removeBtn.classList.contains('no_display')) revealControls();
         // If this is the last row and there are still available options, add a new empty row
         if (tr === tbody.lastElementChild) {
-          const available = getAvailableOptions();
+          const available = await getAvailableOptions();
           if (available.length > 0) tbody.appendChild(await createRow(true));
         }
-
         await refreshPickers();
       });
+
+      function revealControls() {
+        const controls = [slotBtn, removeBtn, downloadBtn, stopBtn, playBtn];
+        controls.forEach((btn, idx) => {
+          btn.classList.remove('hidden');
+          btn.classList.remove('no_display');
+          const inner = btn.querySelector('.control-inner');
+          if (inner) inner.classList.add('in');
+        });
+        openFolderBtn.classList.add("no_display");
+      }
 
       // Animate the control buttons into view so they slide in and push the select
       function animateControlsIn() {
@@ -1048,27 +1205,27 @@
         });
       }
 
-      removeBtn.addEventListener("click", async () => {
-        animateRemoveRow(tr, async() => {
-          await refreshPickers();
-        });
-      });
-
       playBtn.addEventListener("click", async () => {
         const project = ddContainer._dropdown.selectedValue;
-        if (!project) {
-          console.warn("No program selected to run");
+        let slotIndex;
+        if (project) {
+          slotIndex = await project.slotIndex();
+        } else {
+          slotIndex = parseInt(slotBtn.querySelector('.slot-number').textContent) - 1;
         }
-        const slotIndex = await project.slotIndex();
         await Play(slotIndex);
       });
+
       stopBtn.addEventListener("click", Stop);
       downloadBtn.addEventListener("click", async () => {
         const project = ddContainer._dropdown.selectedValue;
-        if (!project) {
-          console.warn("No program selected to download");
-        }
         await downloadProject(project);
+      });
+
+      removeBtn.addEventListener("click", async () => {
+        animateRemoveRow(tr, async () => {
+          await refreshPickers();
+        });
       });
 
       return tr;
@@ -1082,11 +1239,6 @@
       // ensure pickers are consistent and no trailing empty row is left
       await refreshPickers();
     }
-
-    // initial state: either start pre-filled for preview, or leave one empty picker
-    if (INIT_WITH_ALL) initSelectAll();
-    else ensureTrailingEmptyRow();
-
 
     function makeSlotIcon(n) {
       let icon = document.createElement('div');
@@ -1278,78 +1430,6 @@
       progress = current_progress;
     }
 
-
-    function get_extension(file) {
-      const nameParts = file.name.split('.');
-      return nameParts[nameParts.length - 1];
-    }
-
-    async function get_file_name(file_handle) {
-      let file;
-      if (file_handle.kind == 'directory') {
-        //const settings_file =
-        return file_handle.name;
-      } else {
-        file = await file_handle.getFile();
-      }
-
-      const nameParts = file.name.split('.');
-      return nameParts[0];
-    }
-
-    /**
-    * @param {FileSystemDirectoryHandle} handle
-    */
-    async function getFileText(handle) {
-      const file = await handle.getFile();
-      return await file.text();
-    }
-
-    async function getProgramText(handle) {
-      switch (handle.kind) {
-        case ('file'):
-          return (await getProjectJSON(handle)).textContent;
-        case ('directory'):
-          const vscodeDir = await handle.getDirectoryHandle('.vscode');
-          const srcDir = await handle.getDirectoryHandle('src');
-          const mainFile = await srcDir.getFileHandle('main.py');
-          return await getFileText(mainFile);
-        default:
-          throw new Error(`Unrecognized handle kind: ${handle.kind}`);
-      }
-    }
-
-    /*
-     * @param {FileSystemHandle} handle
-     * @returns {FileSystemFileHandle} jsonHandle
-     */
-    async function getJSONhandle(handle) {
-      let jsonHandle;
-      switch (handle.kind) {
-        case ('file'):
-          jsonHandle = handle;
-          break;
-        case ('directory'):
-          jsonHandle = await (await handle.getDirectoryHandle('.vscode')).getFileHandle('vex_project_settings.json');
-          break;
-        default:
-          throw new Error(`Unrecognized handle kind: ${handle.kind}`);
-      }
-      return jsonHandle;
-    }
-
-    async function getProjectJSON(handle) {
-      const jsonHandle = await getJSONhandle(handle);
-      const jsonFile = await jsonHandle.getFile();
-      const jsonText = await jsonFile.text();
-      const dict = JSON.parse(jsonText);
-      if (dict) {
-        return dict;
-      } else {
-        throw new Error(`JSON parsed to ${dict}`);
-      }
-    }
-
     async function asyncFilter(arr, asyncCallbackFn) {
       const results = await Promise.all(arr.map(asyncCallbackFn));
       return arr.filter((_element, index) => results[index]);
@@ -1363,6 +1443,14 @@
     async function asyncFind(arr, asyncCallbackFn) {
       const index = await asyncFindIndex(arr, asyncCallbackFn);
       return arr[index];
+    }
+
+    async function asyncSome(arr, asyncCallbackFn) {
+      for await (const result of arr.map(asyncCallbackFn))
+      {
+        if (result) return true;
+      }
+      return false;
     }
 
     async function filterEqualProjects(arr) {
@@ -1405,7 +1493,12 @@
             // project_dir
             const project_path = fullPath.split('/').slice(0, -2).join('/');
             const project_dir = dir_handles.at(-2);
-            project_arr.push(new Project(project_path, project_dir));
+            const jsonFile = await entry.getFile();
+            const jsonText = await jsonFile.text();
+            const settings = JSON.parse(jsonText);
+            if (settings.project.language === "python") {
+              project_arr.push(new Project(project_path, project_dir));
+            }
           }
           else if (entry.name.endsWith('.iqpython')) {
             project_arr.push(new Project(fullPath, entry));
@@ -1420,48 +1513,85 @@
       return project_arr;
     }
 
-    let indexedDBPromise = getData('lastStoredCodeDir');
-    const codeHandlesPromise = getCodeHandles();
-
-    async function getCodeHandles(dirHandleMaybe) {
-      const dirHandle = dirHandleMaybe ? dirHandleMaybe : (await indexedDBPromise);
-      if (!dirHandle) {
-        console.warn("No directory handle provided or found in indexedDB.");
-        return;
+    async function dedupeDirectoryHandles() {
+      for (let i = 0; i < directoryHandles.length; i++) {
+        for (let j = i + 1; j < directoryHandles.length; j++) {
+          if (await directoryHandles[i].isSameEntry(directoryHandles[j])) {
+              directoryHandles.splice(j, 1);
+              j--; // adjust index after removal
+          }
+        }
       }
-      directoryHandles.push(dirHandle);
-      projects = await findAllProjectsInDirectories(directoryHandles);
+      putData('directoryHandles', directoryHandles);
     }
 
-    async function importCodeDir(manual = false) {
-      let codeHandle;
-      let indexedDBResult;
-      if (manual) {
-        codeHandle = await window.showDirectoryPicker({
-          startIn: directoryHandles[0] || "documents",
-          mode: 'readwrite',
-        });
-      } else {
-        indexedDBResult = await indexedDBPromise;
-        console.log("IndexedDB result:", indexedDBResult);
-        codeHandle = indexedDBResult || await window.showDirectoryPicker({
-          startIn: directoryHandles[0] || "documents",
-          mode: 'readwrite',
-        });
+    async function getPermission(handle) {
+      if (!handle) return null;
+      const opts = { mode: 'readwrite' };
+      let permissionGranted = (await handle.queryPermission(opts) === 'granted');
+      if (!permissionGranted) {
+        permissionGranted = ((await handle.requestPermission(opts)) === 'granted');
       }
-      if (codeHandle === indexedDBResult) {
-        await codeHandlesPromise;
-      } else {
-        await getCodeHandles(codeHandle);
-      }
-      // for (const [fullPath, handle] of Object.entries(projects)) {
-      //   const projectName = await getProjectName(handle);
-      //   const slot = await getProjectSlot(handle);
-      //   console.log(`${projectName} (${slot}): ${fullPath}`);
-      // }
+      return permissionGranted ? handle : null;
+    }
+
+    async function loadDirectories() {
+      const handlesFromDb = (await getData('directoryHandles') ?? []);
+      const newHandles = (await Promise.all(
+        handlesFromDb.map(getPermission)
+      )).filter(Boolean);
+      directoryHandles.push(...newHandles);
+      await dedupeDirectoryHandles();
+      const loadedProjects = await findAllProjectsInDirectories(directoryHandles);
+      projects = await filterEqualProjects(projects.concat(loadedProjects));
+      putData('projects', projects);
       await refreshPickers();
-      putHandle('lastStoredCodeDir', codeHandle); // don't use await, storing takes too long
-      return;
+    }
+
+    async function openFolder() {
+      let newHandle = await window.showDirectoryPicker({
+        id: 'handle-picker',
+        mode: 'readwrite',
+      });
+      directoryHandles.push(newHandle);
+      await dedupeDirectoryHandles();
+      const loadedProjects = await findAllProjectsInDirectories(directoryHandles);
+      projects = await filterEqualProjects(projects.concat(loadedProjects));
+      putData('projects', projects);
+      await refreshPickers();
+    }
+
+    async function deleteAllFolders() {
+      if (!directoryHandles) {
+        
+      }
+      try {
+        await delData('directoryHandles');
+        await delData('projects');
+        await delData('selectedProjects');
+      } catch (e) {
+        console.warn("Error deleting data:", e);
+        console.warn("Hopefully, it worked.");
+      }
+      directoryHandles = [];
+      projects = [];
+      tbody.innerHTML = "";
+      await refreshPickers();
+      console.log("Complete!");
+    }
+
+    async function loadProjects() {
+      let storedProjects = await getData('projects');
+      storedProjects = (storedProjects ?? []).filter(Boolean).map(p => Project.fromStored(p));
+      projects = await filterEqualProjects(projects.concat(storedProjects));
+      putData('projects', projects);
+
+      let selectedProjects = await getData('selectedProjects');
+      selectedProjects = (selectedProjects ?? []).map(p => Project.fromStored(p)).filter(Boolean);
+      for (const p of selectedProjects) {
+        tbody.appendChild(await createRow(false, p));
+      }
+      await refreshPickers();
     }
 
     /**
@@ -1515,12 +1645,15 @@
         console.log("Text:", programText);
         let encoder = new TextEncoder();
         let programData = encoder.encode(programText);
+        const slotNum = await project.slot();
         const slotIndex = await project.slotIndex();
+        const projectName = await project.name();
+        const displayName = `${slotNum}:${projectName}`;
         console.log(await project.name());
         let downloadComplete = false;
         let success;
         try {
-          success = await withIdleTimeout(() => progress, downloadProgram(slotIndex, await project.name(), "python", programData, downloadCallback, "Python"), 1000);
+          success = await withIdleTimeout(() => progress, downloadProgram(slotIndex, displayName, "python", programData, downloadCallback, "Python"), 1000);
         } catch (e) {
           BleProgressUI.setFailure("Download failed");
           setTimeout(BleProgressUI.hide, 2000);
@@ -1539,57 +1672,28 @@
       }
     }
 
-    // =======================================================
-    // Main program
-    // =======================================================
-    // ===== BLE Variables =====
-    let attrs = {};
-    let byteBuffer = new ArrayBuffer(0);
-
-    // ===== DOM Elements =====
-    const statusEl = document.getElementById("status");
-    const connectBtn = document.getElementById("connectBtn");
-    const renameBtn = document.getElementById("rename");
-    const slotPicker = document.getElementById("slotPicker");
-    const clearBtn = document.getElementById('clearBtn')
-    const stdout = document.getElementById('stdout');
-    const logEl = document.getElementById('log');
-    const dataEl = document.getElementById('structured');
-    const overlay = document.getElementById('overlay');
-    const container = document.getElementById('chartContainer');
-    const canvasEl = document.getElementById('myChart');
-    const snapBtn = document.getElementById('snapshot');
-
-    snapBtn.style.display = "none";
-    //snapBtn.style.display = "flex";
-
     function enable_buttons() {
-      const ncConts = document.querySelectorAll('.name-cell');
-      ncConts.forEach(nc => {
-        const playBtn = nc.querySelector('.action-btn.run');
-        const stopBtn = nc.querySelector('.action-btn.stop');
-        const downloadBtn = nc.querySelector('.action-btn.download');
-        playBtn.disabled = false;
-        stopBtn.disabled = false;
-        downloadBtn.disabled = false;
+      document.querySelectorAll('.name-cell').forEach(nameCell => {
+        nameCell.querySelector('.action-btn.run').disabled = false;
+        nameCell.querySelector('.action-btn.stop').disabled = false;
+        const project = nameCell.querySelector('.custom-select')._dropdown.selectedValue;
+        if (project) {
+          const downloadBtn = nameCell.querySelector('.action-btn.download');
+          downloadBtn.disabled = false;
+          downloadBtn.classList.remove("hidden");
+        }
       });
-
       renameBtn.disabled = false;
-      allDisabled = false;
     }
 
     function disable_buttons() {
-      const ncConts = document.querySelectorAll('.name-cell');
-      ncConts.forEach(nc => {
-        const playBtn = nc.querySelector('.action-btn.run');
-        const stopBtn = nc.querySelector('.action-btn.stop');
-        const downloadBtn = nc.querySelector('.action-btn.download');
-        playBtn.disabled = true;
-        stopBtn.disabled = true;
-        downloadBtn.disabled = true;
+      document.querySelectorAll('.name-cell').forEach(nameCell => {
+        nameCell.querySelector('.action-btn.run').disabled = true;
+        nameCell.querySelector('.action-btn.stop').disabled = true;
+        nameCell.querySelector('.action-btn.download').disabled = true;
+        nameCell.querySelector('.action-btn.download').classList.add("hidden");
       });
       renameBtn.disabled = true;
-      allDisabled = true;
     }
 
     function log(msg) {
@@ -1752,6 +1856,11 @@
       log(`Brain renamed ${new_name}`);
     }
 
+    // =======================================================
+    // Stdout
+    // =======================================================
+    let byteBuffer = new ArrayBuffer(0);
+
     function combineArrayBuffers(buffer1, buffer2) {
       const totalLength = buffer1.byteLength + buffer2.byteLength;
 
@@ -1826,7 +1935,6 @@
       return func(data, index);
     }
 
-
     const data_dict = {
       "Axis A": 0,
       "Axis B": 0,
@@ -1850,7 +1958,6 @@
     for (let i = 0; i < graph_data.length; i++) {
       graph_data[i] = { ...data_dict };
     }
-
 
     function update_graph() {
       graph_data.push(graph_data.shift());
@@ -1911,7 +2018,6 @@
             byteBuffer = value.buffer.slice(i);
             return;
           }
-
         }
         else {
           // non null byte, print in console
@@ -1930,7 +2036,9 @@
 
     }
 
-    // ===== Disconnect Brain =====
+    // =======================================================
+    // BLE connection to Brain
+    // =======================================================
     function disconnect_callback() {
       disable_buttons();
       disconnect();
@@ -1973,11 +2081,13 @@
     async function connect() {
       connectBtn.textContent = "Connecting...";
       connectBtn.disabled = true;
+      connectBtn.classList.add('bounce-slow');
       try {
         await scanAndConnect();
       } catch (e) {
         connectBtn.textContent = "Connect";
         connectBtn.disabled = false;
+        connectBtn.classList.remove('bounce-slow');
         return;
       }
 
@@ -1986,20 +2096,18 @@
       connectBtn.disabled = false;
       connectBtn.removeEventListener('click', connect);
       connectBtn.addEventListener('click', disconnect_callback);
+      connectBtn.classList.remove('bounce-slow');
     }
 
-    disable_buttons();
-    init("IQ2");
-    connectBtn.addEventListener('click', connect);
-    clearBtn.addEventListener('click', clearBoth);
-    renameBtn.addEventListener('click', renameBrain);
-    EventSystem.on("VEXBLEBrowser.EnterLockCode", EnterLockCode_callback);
-    bleDeviceManager.notificationHandlerAIMTXUser = stdout_handler;
+    function bleConnected() {
+      return bleDeviceManager && bleDeviceManager.isConnected();
+    }
 
+    // =======================================================
+    // Chart display
+    // =======================================================
     let myChart = null;
-
     const labels = Array.from({ length: 40 }, (_, i) => i * 50);
-
     let config = null;
 
     const brightColors = [
@@ -2014,7 +2122,6 @@
       'rgba(0, 255, 255, 1)',     // cyan
       'rgba(128, 0, 0, 1)'        // dark red
     ];
-
 
     function createConfig(graph_dict) {
       // graph_dict should look like:
@@ -2082,8 +2189,8 @@
         };
         config.data.datasets.push(dataset);
       });
-
     }
+
     createConfig([
       {
         name: "Heading",
@@ -2106,10 +2213,8 @@
 
     ]);
 
-
-
     // Show/hide chart + overlay
-    document.getElementById('canvasButton').addEventListener('click', () => {
+    function showHideChart() {
       const isHidden = container.style.display === 'none' || container.style.display === '';
       container.style.display = isHidden ? 'block' : 'none';
       overlay.style.display = isHidden ? 'block' : 'none';
@@ -2124,32 +2229,21 @@
           myChart.resize(); // resize if chart already exists
         }
       }
-    });
+    }
 
     // Automatically resize chart when window changes size
-    window.addEventListener('resize', () => {
+    function resizeChart() {
       if (myChart && container.style.display === 'block') {
         myChart.resize();
       }
-    });
-
-    // Clicking overlay hides chart
-    overlay.addEventListener('click', () => {
-      container.style.display = 'none';
-      overlay.style.display = 'none';
-      snapBtn.style.display = 'none';
-    });
-
-    let frozen = false;
-    snapBtn.addEventListener('click', () => {
-      frozen = !frozen;
-    });
-
-    function sleep(ms) {
-      return new Promise(resolve => setTimeout(resolve, ms));
     }
 
-    function main_loop() {
+    let frozen = false;
+    function toggleFreezeChart() {
+      frozen = !frozen;
+    }
+
+    function chart_loop() {
       if (myChart !== null) {
         update_graph();
         if (!frozen) {
@@ -2177,10 +2271,35 @@
         }
 
       }
-      setTimeout(main_loop, 50);
+      setTimeout(chart_loop, 50);
     }
 
-    window.onload = main_loop;
+    // =======================================================
+    // Main program
+    // =======================================================
+    await loadProjects();
+    loadDirectories();
+
+    // initial state: either start pre-filled for preview, or leave one empty picker
+    const INIT_WITH_ALL = false; // enable to start with all projects pre-selected for layout preview
+    if (INIT_WITH_ALL) initSelectAll();
+    else ensureTrailingEmptyRow();
+
+    disable_buttons();
+    init("IQ2");
+    connectBtn.addEventListener('click', connect);
+    clearBtn.addEventListener('click', clearBoth);
+    renameBtn.addEventListener('click', renameBrain);
+    EventSystem.on("VEXBLEBrowser.EnterLockCode", EnterLockCode_callback);
+    bleDeviceManager.notificationHandlerAIMTXUser = stdout_handler;
+
+    canvasButton.addEventListener('click', showHideChart);
+    overlay.addEventListener('click', showHideChart); // Clicking overlay hides chart
+    snapBtn.addEventListener('click', toggleFreezeChart);
+    snapBtn.style.display = "none";
+    window.addEventListener('resize', resizeChart);
+    window.onload = chart_loop;
+    window.projects = projects;
   </script>
 </body>
 

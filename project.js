@@ -1,4 +1,6 @@
 class Project {
+    #typePromise = null; // private field to store the cached Promise
+
     /*
     * @constructor
     * @param {string} path
@@ -14,13 +16,41 @@ class Project {
             if (!(handle instanceof FileSystemFileHandle)) {
                 throw new TypeError("Expected a FileSystemFileHandle");
             }
-            this.type = 'iqpython';
         } else {
             if (!(handle instanceof FileSystemDirectoryHandle)) {
                 throw new TypeError("Expected a FileSystemDirectoryHandle");
             }
-            this.type = 'vscode';
         }
+    }
+
+    async #fetchType() {
+        if (this.handle.name.endsWith('.iqpython')) {
+            return 'iqpython';
+        } else if (this.handle instanceof FileSystemDirectoryHandle) {
+            const jsonHandle = await (await this.handle.getDirectoryHandle('.vscode')).getFileHandle('vex_project_settings.json');
+            const jsonFile = await jsonHandle.getFile();
+            const jsonText = await jsonFile.text();
+            const settings = JSON.parse(jsonText);
+            if (settings.project.language === "python") {
+                return 'vscode.python';
+            } else {
+                throw new TypeError(`Unsupported vscode project language: ${settings.project.language}`);
+            }
+        } else {
+            throw new TypeError("Unknown Project type");
+        }
+    }
+
+    /**
+     * An async getter that caches its result. Access this using `await instance.type`.
+     */
+    get type() {
+        if (this.#typePromise === null) {
+            // Cache the promise immediately when the getter is first accessed
+            this.#typePromise = this.#fetchType();
+        }
+        // Always return the promise (cached or new)
+        return this.#typePromise;
     }
 
     /*
@@ -35,20 +65,31 @@ class Project {
     }
 
     static fromStored(obj) {
-        return new Project(obj.path, obj.handle);
+        if (   obj
+            && typeof obj === 'object'
+            && typeof obj.path === 'string'
+            && obj.handle
+            && (   obj.handle instanceof FileSystemFileHandle
+                || obj.handle instanceof FileSystemDirectoryHandle)
+        ) {
+            return new Project(obj.path, obj.handle);
+        }
+        else {
+            return undefined;
+        }
     }
 
     /*
     * @returns {FileSystemFileHandle} jsonHandle
     */
     async jsonHandle() {
-        switch (this.type) {
+        switch (await this.type) {
             case ('iqpython'):
                 return this.handle;
-            case ('vscode'):
+            case ('vscode.python'):
                 return await (await this.handle.getDirectoryHandle('.vscode')).getFileHandle('vex_project_settings.json');
             default:
-                throw new Error(`Unexpected project type: ${this.type}`);
+                throw new Error(`Unexpected project type: ${await this.type}`);
         }
     }
 
@@ -64,25 +105,25 @@ class Project {
     }
 
     async name() {
-        switch (this.type) {
+        switch (await this.type) {
             case ('iqpython'):
                 return this.handle.name.slice(0, -9);
-            case ('vscode'):
+            case ('vscode.python'):
                 return (await this.json()).project.name;
             default:
-                throw new Error(`Unexpected project type: ${this.type}`);
+                throw new Error(`Unexpected project type: ${await this.type}`);
         }
     }
 
     async slot() {
         // return the 1-indexed slot number
-        switch (this.type) {
+        switch (await this.type) {
             case ('iqpython'):
                 return (await this.json()).slot + 1;
-            case ('vscode'):
+            case ('vscode.python'):
                 return (await this.json()).project.slot;
             default:
-                throw new Error(`Unexpected project type: ${this.type}`);
+                throw new Error(`Unexpected project type: ${await this.type}`);
         }
     }
 
@@ -98,17 +139,17 @@ class Project {
         const jsonHandle = await this.jsonHandle();
         const dict = await this.json();
         let jsonString = '';
-        switch (this.type) {
+        switch (await this.type) {
             case ('iqpython'):
                 dict.slot = newSlot - 1;
                 jsonString = JSON.stringify(dict);
                 break;
-            case ('vscode'):
+            case ('vscode.python'):
                 dict.project.slot = newSlot;
                 jsonString = JSON.stringify(dict, null, '\t');
                 break;
             default:
-                throw new Error(`Unexpected project type: ${this.type}`);
+                throw new Error(`Unexpected project type: ${await this.type}`);
         }
         const writable = await jsonHandle.createWritable();
         await writable.write(jsonString);
@@ -116,10 +157,10 @@ class Project {
     }
 
     async programText() {
-        switch (this.type) {
+        switch (await this.type) {
             case ('iqpython'):
                 return (await this.json()).textContent;
-            case ('vscode'):
+            case ('vscode.python'):
                 const relativePath = (await this.json()).project.python.main;
                 const parts = relativePath.split('/').filter(Boolean);
                 let currentDir = this.handle;
@@ -130,7 +171,7 @@ class Project {
                 const file = await fileHandle.getFile();
                 return await file.text();
             default:
-                throw new Error(`Unrecognized handle kind: ${handle.kind}`);
+                throw new Error(`Unexpected project type: ${await this.type}`);
         }
     }
 }
