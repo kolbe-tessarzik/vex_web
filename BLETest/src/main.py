@@ -139,6 +139,9 @@ idc = {
     14: ("gz", "f",       lambda: brain_inertial.gyro_rate(AxisType.ZAXIS)),
 }
 
+for i in range(15, 100):
+    idc[i] = ("Test {i}".format(i=i), "f", lambda: urandom.uniform(-180, 180) )
+
 num = 0
 
 def print_something():
@@ -149,14 +152,17 @@ def print_num():
     num += 1
     print(num)
 
-def pack_len(payload):
-    if len(payload) < 128:
-        return struct.pack("!B", len(payload))
-    elif len(payload) < 32768:
-        # two byte length
-        return struct.pack("!H", len(payload) | 0x8000)
+def pack_var_int(num):
+    if num < 128:
+        return struct.pack("!B", num)
+    elif num < 32768:
+        # two byte num
+        return struct.pack("!H", num | 0x8000)
     else:
-        raise(ValueError("Length too long"))
+        raise(ValueError("Number too large to pack"))
+
+def pack_len(payload):
+    return pack_var_int(len(payload))
 
 def send_data_format():
     special_header = b"\xc0\xde"
@@ -166,7 +172,7 @@ def send_data_format():
     # header(2), cmd(1), len(1/2), (id(2), format(1), name(null-terminated))
     for code, (name, fmt, _) in idc.items():
         # send id of value
-        buffer += struct.pack("!H", code)
+        buffer += pack_var_int(code)
         # send format char
         buffer += fmt.encode('utf-8')
         # send name null-terminated
@@ -184,7 +190,7 @@ def print_data():
     buffer = b""
     for code, (name, fmt, func) in idc.items():
         # send id of value
-        buffer += struct.pack("!H", code)
+        buffer += pack_var_int(code)
         # get the value
         val = func()
         # pack the value

@@ -664,7 +664,7 @@
     }
   </style>
   <link id="favicon" rel="icon" href="favicon.png" type="image/png">
-  <script src="ble_sniffer.js" defer></script>
+ <!--  <script src="ble_sniffer.js" defer></script> -->
   <script src="dropdown.js" defer></script>
   <script src="project.js" defer></script>
   <script src="vex-ble-device-manager.js" defer></script>
@@ -1960,8 +1960,7 @@
 
       for (let i = index; i < index + length && i < data.byteLength;) {
         let code;
-        [code, i] = [data.getUint16(i), i+2];
-        // [code, i] = GetVarInt(data, i);
+        [code, i] = getVarInt(data, i);
         const fmt_list = fmt_for_data[code];
         if (fmt_list === undefined) {
           console.warn(`Code ${code} doesn't exist`);
@@ -1986,8 +1985,7 @@
     function process_format_msg(msg) {
       for (let i = 0; i < msg.byteLength;) {
         let code;
-        [code, i] = [msg.getUint16(i), i+2]; 
-        // [code, i] = GetVarInt(msg, i);
+        [code, i] = getVarInt(msg, i);
         const fmt = msg.getUint8(i);
         i += 1;
 
@@ -2021,7 +2019,7 @@
     * @param {DataView} dv
     * @param {Number} offset
     */
-    function GetVarInt(dv, offset) {
+    function getVarInt(dv, offset) {
       let result = dv.getUint8(offset);
       if (result & 0x80) {
         // 16 bit value
@@ -2086,7 +2084,7 @@
                   || ((i + 4) < dv.byteLength)) // payload_len is 2 bytes, and that byte is available
             ) {
               const cmd = dv.getUint8(i + 2);
-              const [payload_len, payload_offset] = GetVarInt(dv, i + 3);
+              const [payload_len, payload_offset] = getVarInt(dv, i + 3);
               if ((payload_offset + payload_len) <= dv.byteLength) {
                 // full payload present
                 process_special_message(cmd, new DataView(dv.buffer, payload_offset, payload_len));
