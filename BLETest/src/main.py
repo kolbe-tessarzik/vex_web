@@ -149,8 +149,38 @@ def print_num():
     num += 1
     print(num)
 
+def pack_len(payload):
+    if len(payload) < 128:
+        return struct.pack("!B", len(payload))
+    elif len(payload) < 32768:
+        # two byte length
+        return struct.pack("!H", len(payload) | 0x8000)
+    else:
+        raise(ValueError("Length too long"))
+
+def send_data_format():
+    special_header = b"\xc0\xde"
+    format_cmd = b"\x46"
+    buffer = b""
+    # packing format is:
+    # header(2), cmd(1), len(1/2), (id(2), format(1), name(null-terminated))
+    for code, (name, fmt, _) in idc.items():
+        # send id of value
+        buffer += struct.pack("!H", code)
+        # send format char
+        buffer += fmt.encode('utf-8')
+        # send name null-terminated
+        buffer += name.encode('utf-8') + b"\x00"
+    # prefix packet with total length
+    buffer = special_header + format_cmd + pack_len(buffer) + buffer
+    # send data
+    sys.stdout.buffer.write(buffer)
+
 # while True:
 def print_data():
+    special_header = b"\xc0\xde"
+    data_cmd = b"\x44"
+    # format cmd is b"\x46"
     buffer = b""
     for code, (name, fmt, func) in idc.items():
         # send id of value
@@ -160,7 +190,7 @@ def print_data():
         # pack the value
         buffer += struct.pack("!" + fmt, val)
     # prefix packet with total length
-    buffer = b"\x00" + struct.pack("!H", len(buffer) + 2) + buffer
+    buffer = special_header + data_cmd + pack_len(buffer) + buffer
     # send data
     sys.stdout.buffer.write(buffer)
     #sys.stdout.buffer.write(b"\x41")
@@ -168,6 +198,7 @@ def print_data():
 def main():
     brain.buttonUp.pressed(print_num)
     brain.buttonDown.pressed(print_something)
+    send_data_format()
     while True:
         print_data()
         wait(100, MSEC)
