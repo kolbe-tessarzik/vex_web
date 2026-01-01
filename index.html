@@ -664,7 +664,7 @@
     }
   </style>
   <link id="favicon" rel="icon" href="favicon.png" type="image/png">
- <!--  <script src="ble_sniffer.js" defer></script> -->
+  <script src="ble_sniffer.js" defer></script>
   <script src="dropdown.js" defer></script>
   <script src="project.js" defer></script>
   <script src="vex-ble-device-manager.js" defer></script>
@@ -1914,7 +1914,7 @@
       "e": 2,
       "f": 4,
       "d": 8,
-    }
+    };
 
     function get_data(data, index, fmt_code) {
       const fmt_funcs = {
@@ -1955,21 +1955,23 @@
     function updateDatasets() {
       if (myChart === null) return;
       const cookie = JSON.parse(localStorage.getItem('GraphShownLines')) ?? {};
-      myChart.data.datasets = [];
       let i = 0;
       for (const name of Object.keys(data_dict)) {
-        const color = brightColors[i % brightColors.length];
-        const dataset = {
-          label: name,
-          data: new Array(40).fill(0),
-          yAxisID: 'y',
-          borderColor: color,
-          backgroundColor: color.replace('1)', '0.2)'),
-          hidden: (cookie[name]) || (name != 'Heading'),
-          fill: false,
-          tension: 0,
-        };
-        myChart.data.datasets.push(dataset);
+        const dataIndex = myChart.data.datasets.findIndex(dataset => dataset.label === name);
+        if (dataIndex === -1) {
+          const color = brightColors[i % brightColors.length];
+          const dataset = {
+            label: name,
+            data: new Array(40).fill(0),
+            yAxisID: 'y',
+            borderColor: color,
+            backgroundColor: color.replace('1)', '0.2)'),
+            hidden: (cookie[name]) || (name != 'Heading'),
+            fill: false,
+            tension: 0,
+          };
+          myChart.data.datasets.push(dataset);
+        }
         i++;
       }
     }
@@ -2201,52 +2203,11 @@
     // =======================================================
     let myChart = null;
     const labels = Array.from({ length: 40 }, (_, i) => i * 50);
-    let config = null;
-
-    const brightColors = [
-      'rgba(255, 99, 132, 1)',    // red
-      'rgba(54, 162, 235, 1)',    // blue
-      'rgba(255, 206, 86, 1)',    // yellow
-      'rgba(75, 192, 192, 1)',    // teal
-      'rgba(153, 102, 255, 1)',   // purple
-      'rgba(255, 159, 64, 1)',    // orange
-      'rgba(0, 128, 0, 1)',       // green
-      'rgba(255, 0, 255, 1)',     // magenta
-      'rgba(0, 255, 255, 1)',     // cyan
-      'rgba(128, 0, 0, 1)'        // dark red
-    ];
-
-    function createConfig(graph_dict) {
-      // graph_dict should look like:
-      //   [{
-      //     name: "Data1",
-      //     axis: "y",
-      //   },
-      //   {
-      //     name: "Data2",
-      //     axis: "y2",
-      //   },
-      // ]
-      config = {
+    let config = {
         type: 'line',
         data: {
           labels: labels,
-          datasets: [
-            //   label: 'Heading',
-            //   data: new Array(40).fill(0),
-            //   yAxisID: 'y',
-            //   borderColor: 'rgba(75,192,192,1)',
-            //   backgroundColor: 'rgba(75,192,192,0.2)',
-            //   fill: false,
-            //   tension: 0
-            // },
-            // {
-            //   label: 'gx',
-            //   data: new Array(40).fill(0),
-            //   yAxisID: 'y2',
-            //   borderColor: 'rgba(255,99,132,1)',
-            //   tension: 0
-          ]
+          datasets: []
         },
         options: {
           animation: false,
@@ -2266,45 +2227,21 @@
           }
         }
       };
-      const cookie = JSON.parse(localStorage.getItem('GraphShownLines')) ?? {};
 
-      graph_dict.forEach((val, index) => {
-        const color = brightColors[index % brightColors.length];
-        const dataset = {
-          label: val.name,
-          data: new Array(40).fill(0),
-          yAxisID: val.axis,
-          borderColor: color,
-          backgroundColor: color.replace('1)', '0.2)'),
-          hidden: cookie[val.name] || false,
-          fill: false,
-          tension: 0
-        };
-        config.data.datasets.push(dataset);
-      });
-    }
 
-    createConfig([
-      {
-        name: "Heading",
-        axis: "y",
-      },
-      {
-        name: "gx",
-        axis: "y2",
-      },
-      {
-        name: "gy",
-        axis: "y2",
-        hidden: true,
-      },
-      {
-        name: "gz",
-        axis: "y2",
-        hidden: true,
-      },
+    const brightColors = [
+      'rgba(255, 99, 132, 1)',    // red
+      'rgba(54, 162, 235, 1)',    // blue
+      'rgba(255, 206, 86, 1)',    // yellow
+      'rgba(75, 192, 192, 1)',    // teal
+      'rgba(153, 102, 255, 1)',   // purple
+      'rgba(255, 159, 64, 1)',    // orange
+      'rgba(0, 128, 0, 1)',       // green
+      'rgba(255, 0, 255, 1)',     // magenta
+      'rgba(0, 255, 255, 1)',     // cyan
+      'rgba(128, 0, 0, 1)'        // dark red
+    ];
 
-    ]);
 
     // Show/hide chart + overlay
     function showHideChart() {
@@ -2351,6 +2288,7 @@
             const data_name = myChart.data.datasets[i].label;
             const meta = myChart.getDatasetMeta(i);
             const hidden = meta.hidden;
+            //console.log(data_name, ":", hidden);
             if (hidden !== cookie[data_name] && hidden !== null) {
               cookie[data_name] = hidden;
               cookie_changed = true;
@@ -2360,6 +2298,7 @@
 
           myChart.update();
           if (cookie_changed) {
+            console.log("Changing cookie");
             localStorage.setItem('GraphShownLines', JSON.stringify(cookie));
           }
         }
