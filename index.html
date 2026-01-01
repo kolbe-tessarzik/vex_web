@@ -662,11 +662,18 @@
     .name-cell select {
         height: 40px;
     }
+
+    #visionCanvas {
+      width: 100%;
+      max-width: 640px;
+      aspect-ratio: 4 / 3;
+    }
   </style>
   <link id="favicon" rel="icon" href="favicon.png" type="image/png">
   <script src="ble_sniffer.js" defer></script>
   <script src="dropdown.js" defer></script>
   <script src="project.js" defer></script>
+  <script src="visionObject.js" defer></script>
   <script src="vex-ble-device-manager.js" defer></script>
   <script src="indexedDB.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
@@ -685,8 +692,10 @@
     <thead></thead>
     <tbody></tbody>
   </table>
-  <div id="structured"></div>
-
+  <div class="row">
+    <canvas id="visionCanvas" width="640" height="480" style="border:1px solid #000; background: #555555"></canvas>
+    <div id="structured"></div>
+  </div>
   <div class="row">
     <h3>Brain Console</h3>
     <button id="clearBtn">Clear</button>
@@ -1863,7 +1872,7 @@
     async function promptForNewNameModal() {
       return modalPrompt("Update Brain Name", /^\S*$/, "Rename", 0, attrs.robotname ?? "");
     }
-    
+
     async function promptForClearFoldersModal() {
       return modalPrompt("Are you sure you want to remove all previously selected folders?", /\S\s/, "Erase All?", null);
     }
@@ -2026,6 +2035,157 @@
       updateDatasets();
     }
 
+    const tagImages = new Map();
+    function loadAprilTags() {
+      for (let i = 0; i <= 37; i++) {
+        const img = new Image();
+        const id = i.toString().padStart(5, "0");
+        img.src = `assets/AprilTagImgs/tag21_07_${id}.png`;
+        tagImages.set(i, img);
+      }
+    }
+
+    function drawImageInQuad(ctx, img, quad) {
+        const [p0, p1, p2, p3] = quad;
+
+        const vx = { x: p1.x - p0.x, y: p1.y - p0.y };
+        const vy = { x: p3.x - p0.x, y: p3.y - p0.y };
+
+        ctx.save();
+
+        ctx.translate(p0.x, p0.y);
+        ctx.transform(
+          vx.x / img.width, vx.y / img.width,
+          vy.x / img.height, vy.y / img.height,
+          0, 0
+        );
+        ctx.drawImage(img, 0, 0);
+
+        ctx.restore();
+      }
+
+
+    function drawVisionObjects(objs) {
+      const canvas = document.getElementById('visionCanvas');
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.imageSmoothingEnabled = false;
+
+      objs.forEach(obj => {
+        const scale = 2;
+        const x = obj.originX * scale;
+        const y = obj.originY * scale;
+        const w = obj.width * scale;
+        const h = obj.height * scale;
+        // Bounding box
+        ctx.lineWidth = 2;
+        if (obj.quad && obj.quad9) {
+          // ---------- QUAD (tag points) ----------
+          const scalePointBy = scale => p => ({x: p.x * scale, y: p.y * scale});
+          const scaleFunc = scalePointBy(scale);
+          const quad = obj.quad.map(scaleFunc);
+          const quad9 = obj.quad9.map(scaleFunc);
+
+          // Draw AprilTag image
+          const img = tagImages.get(obj.id);
+          if (img && img.complete) {
+            drawImageInQuad(ctx, img, quad9);
+          }
+
+          // draw quad on top
+          ctx.beginPath();
+          quad.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
+          ctx.closePath();
+          ctx.strokeStyle = "lime";
+          ctx.stroke();
+        } else {
+          // draw boring rectangle
+          switch (obj.name) {
+            case "Blue Pin":
+              ctx.strokeStyle = "darkcyan";
+              break;
+            case "Red Pin":
+              ctx.strokeStyle = "crimson";
+              break;
+            case "Orange Pin":
+              ctx.strokeStyle = "darkorange";
+              break;
+            default:
+              ctx.strokeStyle = "white";
+              break;
+          }
+          ctx.strokeRect(x, y, w, h);
+        }
+
+        // Center crosshair
+        const cx = obj.centerX * scale;
+        const cy = obj.centerY * scale;
+        const r = 6; // half-length of crosshair arms
+        ctx.strokeStyle = "white";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(cx - r, cy);
+        ctx.lineTo(cx + r, cy);
+        ctx.moveTo(cx, cy - r);
+        ctx.lineTo(cx, cy + r);
+        ctx.stroke();
+        // ---------- LABEL ----------
+        ctx.font = "14px monospace";
+        const pad = 6;
+        const lineHeight = 16;
+        const labelLines = [
+          obj.name,
+          ...((obj.type === 3) ? [`A:${obj.angle.toFixed(0)}°`] : []),
+          `CX:${obj.centerX} CY:${obj.centerY}`,
+          `W:${obj.width} H:${obj.height}`,
+          ...((obj.type === 2) ? [`Score:${obj.score}%`] : [])
+        ];
+
+        const labelWidth =
+          Math.max(...labelLines.map(l => ctx.measureText(l).width)) + pad * 2;
+        const labelHeight =
+          labelLines.length * lineHeight + pad * 2;
+
+        // Prefer above
+        let labelX = x;
+        let labelY = y - labelHeight;
+
+        // If above doesn't fit, move below
+        if (labelY < 0) {
+          labelY = y + h;
+        }
+
+        // Clamp horizontally to canvas
+        labelX = Math.max(0, Math.min(labelX, canvas.width - labelWidth));
+
+        // Background
+        ctx.fillStyle = "rgba(0,0,0,0.5)";
+        ctx.fillRect(labelX, labelY, labelWidth, labelHeight);
+
+        // Text
+        ctx.fillStyle = "white";
+        labelLines.forEach((line, idx) => {
+          ctx.fillText(
+            line,
+            labelX + pad,
+            labelY + pad + (idx + 1) * lineHeight - 4
+          );
+        });
+      });
+    }
+
+    function process_vision_data(payload) {
+      let objects = [];
+      const payloadTotalLength = payload.byteOffset + payload.byteLength;
+      for (let offset = payload.byteOffset; offset < payloadTotalLength;) {
+        const vo_bytes = new DataView(payload.buffer, offset);
+        const obj = new VisionObject(vo_bytes);
+        objects.push(obj);
+        offset += obj.byteLength;
+      }
+      drawVisionObjects(objects);
+    }
+
     function process_special_message(cmd, payload) {
       if (cmd === 0x44) {
         // data message
@@ -2033,6 +2193,8 @@
         update_graph();
       } else if (cmd === 0x46) {
         process_format_msg(payload);
+      } else if (cmd === 0x49) {
+        process_vision_data(payload);
       } else {
         console.warn(`Unknown special message cmd: ${cmd}`);
       }
@@ -2165,7 +2327,7 @@
           pair_code = null;
         }
       } while (pair_code === null)
-      
+
       // pairing successful; store/update the code
       log(`Storing code: ${pair_code} to key: ${pair_key}`);
       localStorage.setItem(pair_key, pair_code);
@@ -2308,6 +2470,7 @@
     // =======================================================
     // Main program
     // =======================================================
+    loadAprilTags();
     await loadProjects();
     loadDirectories();
 
