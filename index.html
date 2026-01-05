@@ -2026,7 +2026,9 @@
           const nameLength = nullByteIndex - j;
           const name = (new TextDecoder()).decode(new DataView(msg.buffer, j, nameLength));
           fmt_for_data[code] = [name, String.fromCharCode(fmt)];
-          data_dict[name] = 0;
+          if (data_dict[name] === undefined) {
+            data_dict[name] = 0;
+          }
           i += (nameLength + 1);
         } else {
           throw Error(`Can't find null byte in msg:`, msg);
