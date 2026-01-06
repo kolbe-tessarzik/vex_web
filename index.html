@@ -2047,25 +2047,86 @@
       }
     }
 
+    function setAffineFromTriangles(ctx, src, dst) {
+      // src, dst: arrays of 3 points: [{x,y}, {x,y}, {x,y}]
+
+      const [s0, s1, s2] = src;
+      const [d0, d1, d2] = dst;
+
+      // Solve:  [a c e] [sx] = [dx]
+      //         [b d f] [sy]   [dy]
+      //         [0 0 1] [1 ]   [1 ]
+
+      const denom =
+        s0.x * (s1.y - s2.y) +
+        s1.x * (s2.y - s0.y) +
+        s2.x * (s0.y - s1.y);
+
+      const a =
+        (d0.x * (s1.y - s2.y) +
+          d1.x * (s2.y - s0.y) +
+          d2.x * (s0.y - s1.y)) / denom;
+
+      const b =
+        (d0.y * (s1.y - s2.y) +
+          d1.y * (s2.y - s0.y) +
+          d2.y * (s0.y - s1.y)) / denom;
+
+      const c =
+        (d0.x * (s2.x - s1.x) +
+          d1.x * (s0.x - s2.x) +
+          d2.x * (s1.x - s0.x)) / denom;
+
+      const d =
+        (d0.y * (s2.x - s1.x) +
+          d1.y * (s0.x - s2.x) +
+          d2.y * (s1.x - s0.x)) / denom;
+
+      const e =
+        (d0.x * (s1.x * s2.y - s2.x * s1.y) +
+          d1.x * (s2.x * s0.y - s0.x * s2.y) +
+          d2.x * (s0.x * s1.y - s1.x * s0.y)) / denom;
+
+      const f =
+        (d0.y * (s1.x * s2.y - s2.x * s1.y) +
+          d1.y * (s2.x * s0.y - s0.x * s2.y) +
+          d2.y * (s0.x * s1.y - s1.x * s0.y)) / denom;
+
+      ctx.setTransform(a, b, c, d, e, f);
+    }
+
+    function clipTriangle(ctx, p0, p1, p2) {
+      ctx.beginPath();
+      ctx.moveTo(p0.x, p0.y);
+      ctx.lineTo(p1.x, p1.y);
+      ctx.lineTo(p2.x, p2.y);
+      ctx.closePath();
+      ctx.clip();
+    }
+
     function drawImageInQuad(ctx, img, quad) {
-        const [p0, p1, p2, p3] = quad;
+      const w = img.width;
+      const h = img.height;
+      const img_points = [{ x: 0, y: 0 }, { x: w, y: 0 }, { x: w, y: h }, { x: 0, y: h }]
+      const img_center = { x: w/2, y: h/2 };
+      const cx = quad.reduce((s, p) => s + p.x, 0) / 4;
+      const cy = quad.reduce((s, p) => s + p.y, 0) / 4;
+      const quad_center = { x: cx, y: cy };
+      const [p0, p1, p2, p3] = quad;
 
-        const vx = { x: p1.x - p0.x, y: p1.y - p0.y };
-        const vy = { x: p3.x - p0.x, y: p3.y - p0.y };
-
+      for (let i = 0; i < 4; ++i) {
+        const j = (i + 1) % 4;
         ctx.save();
-
-        ctx.translate(p0.x, p0.y);
-        ctx.transform(
-          vx.x / img.width, vx.y / img.width,
-          vy.x / img.height, vy.y / img.height,
-          0, 0
+        clipTriangle(ctx, quad[i], quad[j], quad_center);
+        setAffineFromTriangles(
+          ctx,
+          [img_points[i], img_points[j], img_center],
+          [quad[i], quad[j], quad_center]
         );
         ctx.drawImage(img, 0, 0);
-
         ctx.restore();
       }
-
+    }
 
     function drawVisionObjects(objs) {
       const canvas = document.getElementById('visionCanvas');
