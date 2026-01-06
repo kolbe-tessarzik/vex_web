@@ -33,6 +33,8 @@ class Project {
             const settings = JSON.parse(jsonText);
             if (settings.project.language === "python") {
                 return 'vscode.python';
+            } else if (settings.project.language === "cpp") {
+                return 'vscode.cpp';
             } else {
                 throw new TypeError(`Unsupported vscode project language: ${settings.project.language}`);
             }
@@ -87,6 +89,7 @@ class Project {
             case ('iqpython'):
                 return this.handle;
             case ('vscode.python'):
+            case ('vscode.cpp'):
                 return await (await this.handle.getDirectoryHandle('.vscode')).getFileHandle('vex_project_settings.json');
             default:
                 throw new Error(`Unexpected project type: ${await this.type}`);
@@ -109,7 +112,32 @@ class Project {
             case ('iqpython'):
                 return this.handle.name.slice(0, -9);
             case ('vscode.python'):
+            case ('vscode.cpp'):
                 return (await this.json()).project.name;
+            default:
+                throw new Error(`Unexpected project type: ${await this.type}`);
+        }
+    }
+
+    async language() {
+        switch (await this.type) {
+            case ('iqpython'):
+                return (await this.json()).textLanguage;
+            case ('vscode.python'):
+            case ('vscode.cpp'):
+                return (await this.json()).project.language;
+            default:
+                throw new Error(`Unexpected project type: ${await this.type}`);
+        }
+    }
+
+    async ide() {
+        switch (await this.type) {
+            case ('iqpython'):
+            case ('vscode.python'):
+                return "Python";
+            case ('vscode.cpp'):
+                return "C++"
             default:
                 throw new Error(`Unexpected project type: ${await this.type}`);
         }
@@ -121,6 +149,7 @@ class Project {
             case ('iqpython'):
                 return (await this.json()).slot + 1;
             case ('vscode.python'):
+            case ('vscode.cpp'):
                 return (await this.json()).project.slot;
             default:
                 throw new Error(`Unexpected project type: ${await this.type}`);
@@ -145,6 +174,7 @@ class Project {
                 jsonString = JSON.stringify(dict);
                 break;
             case ('vscode.python'):
+            case ('vscode.cpp'):
                 dict.project.slot = newSlot;
                 jsonString = JSON.stringify(dict, null, '\t');
                 break;
@@ -156,20 +186,50 @@ class Project {
         await writable.close();
     }
 
+    async _getFile(relativePath) {
+        const parts = relativePath.split('/').filter(Boolean);
+        let currentDir = this.handle;
+        for (let i = 0; i < parts.length - 1; i++) {
+            currentDir = await currentDir.getDirectoryHandle(parts[i]);
+        }
+        const fileHandle = await currentDir.getFileHandle(parts.at(-1));
+        return await fileHandle.getFile();
+    }
+
     async programText() {
         switch (await this.type) {
             case ('iqpython'):
                 return (await this.json()).textContent;
             case ('vscode.python'):
+            {
                 const relativePath = (await this.json()).project.python.main;
-                const parts = relativePath.split('/').filter(Boolean);
-                let currentDir = this.handle;
-                for (let i = 0; i < parts.length - 1; i++) {
-                    currentDir = await currentDir.getDirectoryHandle(parts[i]);
-                }
-                const fileHandle = await currentDir.getFileHandle(parts.at(-1));
-                const file = await fileHandle.getFile();
+                const file = await this._getFile(relativePath);
                 return await file.text();
+            }
+            case ('vscode.cpp'):
+            {
+                const relativePath = "src/main.cpp";
+                const file = await this._getFile(relativePath);
+                return await file.text();
+            }
+            default:
+                throw new Error(`Unexpected project type: ${await this.type}`);
+        }
+    }
+
+    async programData () {
+        switch (await this.type) {
+            case ('iqpython'):
+            case ('vscode.python'):
+                const programText = await this.programText();
+                let encoder = new TextEncoder();
+                return encoder.encode(programText);
+            case ('vscode.cpp'):
+                const projectName = await this.name();
+                const relativePath = `build/${projectName}.bin`
+                const file = await this._getFile(relativePath);
+                const buffer = await file.arrayBuffer();
+                return new Uint8Array(buffer);
             default:
                 throw new Error(`Unexpected project type: ${await this.type}`);
         }

@@ -1513,7 +1513,8 @@
             const jsonFile = await entry.getFile();
             const jsonText = await jsonFile.text();
             const settings = JSON.parse(jsonText);
-            if (settings.project.language === "python") {
+            if (   (settings.project.language === "python")
+                || (settings.project.language === "cpp") ) {
               project_arr.push(new Project(project_path, project_dir));
             }
           }
@@ -1661,19 +1662,18 @@
         BleProgressUI.show();
         BleProgressUI.setInProgress("Preparing download...");
         BleProgressUI.setPercent(0);
-        const programText = await project.programText();
-        console.log("Text:", programText);
-        let encoder = new TextEncoder();
-        let programData = encoder.encode(programText);
         const slotNum = await project.slot();
         const slotIndex = await project.slotIndex();
         const projectName = await project.name();
         const displayName = `${slotNum}:${projectName}`;
-        console.log(await project.name());
+        const language = await project.language();
+        const programData = await project.programData();
+        const ide = await project.ide();
+        console.log(projectName);
         let downloadComplete = false;
         let success;
         try {
-          success = await withIdleTimeout(() => progress, downloadProgram(slotIndex, displayName, "python", programData, downloadCallback, "Python"), 3000);
+          success = await withIdleTimeout(() => progress, downloadProgram(slotIndex, displayName, language, programData, downloadCallback, ide), 3000);
         } catch (e) {
           BleProgressUI.setFailure("Download failed");
           setTimeout(BleProgressUI.hide, 2000);
