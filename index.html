@@ -664,10 +664,11 @@
     }
 
     #visionCanvas {
-      width: 100%;
-      max-width: 640px;
-      aspect-ratio: 4 / 3;
+      width: 640px;
+      height: 480px;
+      image-rendering: pixelated;
     }
+
   </style>
   <link id="favicon" rel="icon" href="favicon.png" type="image/png">
   <script src="ble_sniffer.js" defer></script>
@@ -693,7 +694,7 @@
     <tbody></tbody>
   </table>
   <div class="row">
-    <canvas id="visionCanvas" width="640" height="480" style="border:1px solid #000; background: #555555"></canvas>
+    <canvas id="visionCanvas" width="1280" height="960" style="border:1px solid #000; background: #555555"></canvas>
     <div id="structured"></div>
   </div>
   <div class="row">
@@ -2135,7 +2136,7 @@
       ctx.imageSmoothingEnabled = false;
 
       objs.forEach(obj => {
-        const scale = 2;
+        const scale = 4;
         const x = obj.originX * scale;
         const y = obj.originY * scale;
         const w = obj.width * scale;
@@ -2193,9 +2194,10 @@
         ctx.lineTo(cx, cy + r);
         ctx.stroke();
         // ---------- LABEL ----------
-        ctx.font = "14px monospace";
+        ctx.font = "20px monospace";
+        const metrics = ctx.measureText("Mg");
         const pad = 6;
-        const lineHeight = 16;
+        const lineHeight = (metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent + 2);
         const labelLines = [
           obj.name,
           ...((obj.type === 3) ? [`A:${obj.angle.toFixed(0)}°`] : []),
