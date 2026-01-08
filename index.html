@@ -1489,6 +1489,12 @@
     async function findAllProjectsInDirectories(dir_handles) {
       let newProjects = [];
       for (const handle of dir_handles) {
+        if (!navigator.userActivation?.isActive) {
+          console.log("Not user activated");
+          console.log(handle.requestPermission({mode: "readwrite"}));
+        } else {
+          console.log("User activated");
+        }
         newProjects.push(...await findAllProjects([handle], null));
       }
       return await filterEqualProjects(newProjects);
@@ -1604,6 +1610,17 @@
     async function loadProjects() {
       let storedProjects = await getData('projects');
       storedProjects = (storedProjects ?? []).filter(Boolean).map(p => Project.fromStored(p));
+      try {
+        storedProjects = (await Promise.all(
+          storedProjects.map(async (proj) => (await getPermission(proj.handle)) ? proj : null)
+        )).filter(Boolean);
+      } catch (e) {
+        console.warn("Bad permissions:", e);
+        projects = [];
+        await indexedDB.deleteDatabase('app-db');
+        return;
+      }
+
       projects = await filterEqualProjects(projects.concat(storedProjects));
       putData('projects', projects);
 
