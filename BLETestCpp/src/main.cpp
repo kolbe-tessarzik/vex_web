@@ -175,7 +175,7 @@ void calibrateDrivetrain()
 void vexcodeInit()
 {
     // Calibrate the Drivetrain
-    calibrateDrivetrain();
+    //calibrateDrivetrain();
 
     // Initializing random seed.
     initializeRandomSeed();
@@ -248,9 +248,10 @@ void pack(std::vector<uint8_t>& buf, double value)
 // ------------------------------------------------------------
 // Variable-length integer packing
 // ------------------------------------------------------------
-void pack_var_int(std::vector<uint8_t>& buf, uint32_t num)
+template<typename T>
+void pack_var_int(std::vector<uint8_t>& buf, T num)
 {
-    if (num < 128)
+    if ((num >= 0) && (num < 128))
     {
         pack<uint8_t>(buf, static_cast<uint8_t>(num));
         return;
@@ -260,7 +261,7 @@ void pack_var_int(std::vector<uint8_t>& buf, uint32_t num)
         pack<uint16_t>(buf, static_cast<uint16_t>(num | 0x8000));
         return;
     }
-    printf("WARNING: Number too large to pack (in pack_var_int): %lu\n", num);
+    printf("WARNING: Number too large to pack (in pack_var_int): %lld\n", (long long)num);
 }
 
 
@@ -371,28 +372,25 @@ void send_structured_data(void)
 }
 */
 
-uint8_t convert_vision_object_type(vex::aivision::objectType x)
+uint8_t get_vision_object_type(vex::aivision::object& obj)
 {
-    if (x == vex::aivision::objectType::colorObject)
+    // encode obj.type in the top 2 bits of the returned byte
+    switch (obj.type)
     {
-        return 0;
-    }
-    else if (x == vex::aivision::objectType::codeObject)
-    {
-        return 1;
-    }
-    else if (x == vex::aivision::objectType::modelObject)
-    {
-        return 2;
-    }
-    else if (x == vex::aivision::objectType::tagObject)
-    {
-        return 3;
-    }
-    else
-    {
-        printf("WARNING: unrecognized objectType %d\n", x);
-        return 2;
+        case vex::aivision::objectType::colorObject:
+            return 0b00000000;
+
+        case vex::aivision::objectType::codeObject:
+            return 0b01000000;
+
+        case vex::aivision::objectType::modelObject:
+            return 0b10000000;
+
+        case vex::aivision::objectType::tagObject:
+            return 0b11000000;
+
+        default:
+            return 0xFF;
     }
 }
 
@@ -400,11 +398,16 @@ uint8_t convert_vision_object_type(vex::aivision::objectType x)
 void pack_vision_object(std::vector<uint8_t>& buf, vex::aivision::object& obj)
 {
     // obj.id; store in bottom 6 bits of first byte
-    // classroom objects : 0 - 7
-    // VIQRC Mix &Match objects : 0 - 3
-    // AprilTag : 0 - 36
-    uint8_t obj_type = convert_vision_object_type(obj.type);
-    uint8_t obj_id = ((obj_type & 0b11) << 6) | (obj.id & 0b111111);
+    // classroom objects: 0 - 7
+    // VIQRC Mix & Match objects: 0 - 3
+    // AprilTag: 0 - 36
+    const uint8_t obj_type = get_vision_object_type(obj);
+    if (obj_type == 0xFF)
+    {
+        printf("Unsupported objectType %d\n", obj.type);
+        return;
+    }
+    uint8_t obj_id = obj_type | (obj.id & 0b111111);
     buf.push_back(obj_id);
     pack_var_int(buf, obj.originX);    //  0-320
     pack_var_int(buf, obj.originY);    //  0-240
@@ -460,7 +463,7 @@ void send_vision_data()
     buf.push_back(0x00); // fill length in here
     for (int i = 0; i < objs_len; i++)
     {
-        vex::aivision::object obj = ai_vision.objects[i];
+        vex::aivision::object& obj = ai_vision.objects[i];
         if (obj.exists)
         {
             pack_vision_object(buf, obj);
@@ -485,6 +488,9 @@ void print_num(void)
 
 int main()
 {
+    // Disable line buffering: use fully buffered mode (_IOFBF)
+    // buffer = NULL -> library allocates buffer automatically
+    setvbuf(stdout, NULL, _IOFBF, BUFSIZ);
     vexcodeInit();
     brain.buttonUp.pressed(print_num);
     brain.buttonDown.pressed(print_something);
@@ -494,7 +500,9 @@ int main()
         for (int i = 0; i < 10; i++)
         {
             // send_structured_data();
+            int last_time = brain.Timer.time(msec);
             send_vision_data();
+            printf("Time: %d\n", (int)(brain.Timer.time(msec)) - last_time);
             wait(100, msec);
         }
     }
