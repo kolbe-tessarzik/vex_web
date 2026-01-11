@@ -1491,7 +1491,6 @@
       for (const handle of dir_handles) {
         if (!navigator.userActivation?.isActive) {
           console.log("Not user activated");
-          console.log(handle.requestPermission({mode: "readwrite"}));
         } else {
           console.log("User activated");
         }
@@ -1559,12 +1558,19 @@
       return permissionGranted ? handle : null;
     }
 
-    async function loadDirectories() {
-      const handlesFromDb = (await getData('directoryHandles') ?? []);
-      const newHandles = (await Promise.all(
-        handlesFromDb.map(getPermission)
-      )).filter(Boolean);
-      directoryHandles.push(...newHandles);
+    function getDBHandles() {
+      return Promise.all([getData('projects'), getData('directoryHandles')]);
+    }
+
+    async function loadAndProcessHandles() {
+      let [rawProjects, rawDirHandles] = await getDBHandles();
+      await loadProjects(rawProjects);
+      loadDirectories(rawDirHandles);
+    }
+
+    async function loadDirectories(handlesFromDb) {
+      handlesFromDb = handlesFromDb ?? [];
+      directoryHandles.push(...handlesFromDb);
       await dedupeDirectoryHandles();
       const loadedProjects = await findAllProjectsInDirectories(directoryHandles);
       projects = await filterEqualProjects(projects.concat(loadedProjects));
@@ -1607,19 +1613,8 @@
       return true;
     }
 
-    async function loadProjects() {
-      let storedProjects = await getData('projects');
+    async function loadProjects(storedProjects) {
       storedProjects = (storedProjects ?? []).filter(Boolean).map(p => Project.fromStored(p));
-      try {
-        storedProjects = (await Promise.all(
-          storedProjects.map(async (proj) => (await getPermission(proj.handle)) ? proj : null)
-        )).filter(Boolean);
-      } catch (e) {
-        console.warn("Bad permissions:", e);
-        projects = [];
-        await indexedDB.deleteDatabase('app-db');
-        return;
-      }
 
       projects = await filterEqualProjects(projects.concat(storedProjects));
       putData('projects', projects);
@@ -2553,8 +2548,7 @@
     // Main program
     // =======================================================
     loadAprilTags();
-    await loadProjects();
-    loadDirectories();
+    await loadAndProcessHandles();
 
     // initial state: either start pre-filled for preview, or leave one empty picker
     const INIT_WITH_ALL = false; // enable to start with all projects pre-selected for layout preview
