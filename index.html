@@ -687,6 +687,7 @@
     <div class="row">
       <button id="connectBtn">Connect</button>
       <button id="rename">Rename</button>
+      <button id="reconnect" class="hidden">Reconnect</button>
     </div>
   </div>
   <table id="pickerTable">
@@ -768,6 +769,7 @@
     const canvasEl = document.getElementById('myChart');
     const snapBtn = document.getElementById('snapshot');
     const canvasButton = document.getElementById('canvasButton');
+    const reconnectBtn = document.getElementById('reconnect');
 
     // =======================================================
     // Global variables
@@ -781,6 +783,7 @@
 
     let directoryHandles = [];
     let attrs = {};
+    let reconnectBrain = null;
 
     /*=============================================================================
     * Table with program pickers and action buttons
@@ -2372,6 +2375,8 @@
     // BLE connection to Brain
     // =======================================================
     function disconnect_callback() {
+      reconnectBrain = bleDeviceManager.device;
+      reconnectBtn.classList.remove("hidden");
       disable_buttons();
       disconnect();
       attrs = {};
@@ -2410,12 +2415,20 @@
       localStorage.setItem(pair_key, pair_code);
     }
 
-    async function connect() {
+    async function connect(brain) {
+
       connectBtn.textContent = "Connecting...";
       connectBtn.disabled = true;
       connectBtn.classList.add('bounce-slow');
       try {
-        await scanAndConnect();
+        console.log(bleDeviceManager);
+        console.log("Hello", brain instanceof Event);
+        if (!(brain instanceof Event)) {
+          bleDeviceManager.device = brain;
+          await bleDeviceManager.connect();
+        } else {
+          await scanAndConnect();
+        }
       } catch (e) {
         connectBtn.textContent = "Connect";
         connectBtn.disabled = false;
@@ -2423,12 +2436,16 @@
         return;
       }
 
+      bleDeviceManager.device.removeEventListener("gattserverdisconnected", disconnect_callback);
+      bleDeviceManager.device.addEventListener("gattserverdisconnected", disconnect_callback);
+
       enable_buttons()
       connectBtn.textContent = "Disconnect";
       connectBtn.disabled = false;
       connectBtn.removeEventListener('click', connect);
       connectBtn.addEventListener('click', disconnect_callback);
       connectBtn.classList.remove('bounce-slow');
+      reconnectBtn.classList.add("hidden");
     }
 
     function bleConnected() {
@@ -2560,6 +2577,11 @@
     connectBtn.addEventListener('click', connect);
     clearBtn.addEventListener('click', clearBoth);
     renameBtn.addEventListener('click', renameBrain);
+    reconnectBtn.addEventListener("click", () => {
+      reconnectBtn.classList.add("hidden");
+      connect(reconnectBrain);
+    });
+
     EventSystem.on("VEXBLEBrowser.EnterLockCode", EnterLockCode_callback);
     bleDeviceManager.notificationHandlerAIMTXUser = stdout_handler;
 
