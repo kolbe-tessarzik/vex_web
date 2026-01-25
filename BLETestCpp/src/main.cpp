@@ -17,6 +17,7 @@ auto forward = vex::forward;
 auto reverse = vex::reverse;
 auto msec    = vex::msec;
 auto seconds = vex::seconds;
+auto mm = vex::mm;
 
 
 // START IQ MACROS
@@ -52,7 +53,7 @@ vex::distance dist_rear = vex::distance(vex::PORT8);
 // AI Vision Code Descriptions
 vex::aivision ai_vision(vex::PORT2, vex::aivision::ALL_TAGS, vex::aivision::ALL_AIOBJS);
 
-vex::controller Controller = vex::controller();
+vex::controller controller = vex::controller();
 vex::optical optical_left = vex::optical(vex::PORT7);
 vex::optical optical_right = vex::optical(vex::PORT12);
 
@@ -198,72 +199,12 @@ bool RemoteControlCodeEnabled = true;
 // Include the IQ Library
 #include "iq_cpp.h"
 
+#include "structured_logger.h"
+
 #include <cstdint>
 #include <vector>
 #include <cstring>
 #include <type_traits>
-#include <stdexcept>
-
-// ------------------------------------------------------------
-// Core helper: append an integer value in big-endian byte order
-// ------------------------------------------------------------
-template<typename IntT>
-void pack_integer_be(std::vector<uint8_t>& buf, IntT value)
-{
-    for (uint32_t i = 0; i < sizeof(IntT); ++i) {
-        buf.push_back(static_cast<uint8_t>(value >> (8 * (sizeof(IntT) - 1 - i))));
-    }
-}
-
-// ------------------------------------------------------------
-// Generic pack<T> for integral types
-// ------------------------------------------------------------
-template<typename T>
-void pack(std::vector<uint8_t>& buf, T value)
-{
-    static_assert(std::is_integral<T>::value, "pack<T>: integral types only");
-    pack_integer_be(buf, value);
-}
-
-// ------------------------------------------------------------
-// Overload for float
-// ------------------------------------------------------------
-void pack(std::vector<uint8_t>& buf, float value)
-{
-    uint32_t bits;
-    std::memcpy(&bits, &value, sizeof(bits));
-    pack_integer_be(buf, bits);
-}
-
-// ------------------------------------------------------------
-// Overload for double
-// ------------------------------------------------------------
-void pack(std::vector<uint8_t>& buf, double value)
-{
-    uint64_t bits;
-    std::memcpy(&bits, &value, sizeof(bits));
-    pack_integer_be(buf, bits);
-}
-
-// ------------------------------------------------------------
-// Variable-length integer packing
-// ------------------------------------------------------------
-template<typename T>
-void pack_var_int(std::vector<uint8_t>& buf, T num)
-{
-    if ((num >= 0) && (num < 128))
-    {
-        pack<uint8_t>(buf, static_cast<uint8_t>(num));
-        return;
-    }
-    if (num < 32768)
-    {
-        pack<uint16_t>(buf, static_cast<uint16_t>(num | 0x8000));
-        return;
-    }
-    printf("WARNING: Number too large to pack (in pack_var_int): %lld\n", (long long)num);
-}
-
 
 struct valForPack {
     u_char format;
@@ -309,68 +250,6 @@ idc = {
 // for i in range(15, 100):
 // idc[i] = ("Test {i}".format(i = i), "f", lambda : urandom.uniform(-180, 180))
 
-
-
-
-void pack_len(std::vector<uint8_t>& buf, int offset)
-{
-    // -2 bytes for encoded length
-    const int payload_len = buf.size() - offset - 2;
-    if (payload_len >= 32768)
-    {
-        printf("WARNING: Number too large to pack (in pack_len): %d\n", payload_len);
-        return;
-    }
-
-    // pack most significant byte and set most significant bit
-    buf[offset]     = ((uint8_t)(payload_len >> 8)) | 0x80;
-    buf[offset + 1] = (uint8_t)(payload_len);
-}
-
-/*
-void send_data_format(void)
-{
-    special_header = b"\xc0\xde"
-    format_cmd = b"\x46"
-    buffer = b""
-    // packing format is:
-    // header(2), cmd(1), len(1 / 2), (id(2), format(1), name(null - terminated))
-    for (code, (name, fmt, _) in idc.items())
-    {
-        // send id of value
-        buffer += pack_var_int(code);
-        // send format char
-        buffer += fmt.encode('utf-8');
-        // send name null - terminated
-        buffer += name.encode('utf-8') + b"\x00";
-    }
-    // prefix packet with total length
-    buffer = special_header + format_cmd + pack_len(buffer) + buffer
-    // send data
-    sys.stdout.buffer.write(buffer);
-}
-
-
-void send_structured_data(void)
-{
-    special_header = b"\xc0\xde";
-    data_cmd = b"\x44";
-    buffer = b"";
-    for code, (name, fmt, func) in idc.items():
-    {
-        // send id of value
-        buffer += pack_var_int(code);
-        // get the value
-        val = func();
-        // pack the value
-        buffer += struct.pack("!" + fmt, val);
-    }
-    // prefix packet with total length
-    buffer = special_header + data_cmd + pack_len(buffer) + buffer;
-    // send data
-    sys.stdout.buffer.write(buffer);
-}
-*/
 
 uint8_t get_vision_object_type(vex::aivision::object& obj)
 {
@@ -486,23 +365,48 @@ void print_num(void)
     printf("%lu\n", num);
 }
 
+StructuredLogger logger{};
+
 int main()
 {
     // Disable line buffering: use fully buffered mode (_IOFBF)
     // buffer = NULL -> library allocates buffer automatically
     setvbuf(stdout, NULL, _IOFBF, BUFSIZ);
     vexcodeInit();
+
+    optical_left.setLight(vex::ledState::on);
+    optical_right.setLight(vex::ledState::on);
+
     brain.buttonUp.pressed(print_num);
     brain.buttonDown.pressed(print_something);
+
+    logger.add("Axis A",     [](){ return controller.AxisA.position(); });
+    logger.add("Axis B",     [](){ return controller.AxisB.position(); });
+    logger.add("Axis C",     [](){ return controller.AxisC.position(); });
+    logger.add("Axis D",     [](){ return controller.AxisD.position(); });
+    logger.add("Heading",    [](){ return normalize(brain_inertial.heading()); });
+    logger.add("Rotation",   [](){ return brain_inertial.rotation(); });
+    logger.add("Roll",       [](){ return brain_inertial.orientation(vex::roll, degrees); });
+    logger.add("Pitch",      [](){ return brain_inertial.orientation(vex::pitch, degrees); });
+    logger.add("Yaw",        [](){ return brain_inertial.orientation(vex::yaw, degrees); });
+    logger.add("ax",         [](){ return brain_inertial.acceleration(vex::xaxis); });
+    logger.add("ay",         [](){ return brain_inertial.acceleration(vex::yaxis); });
+    logger.add("az",         [](){ return brain_inertial.acceleration(vex::zaxis); });
+    logger.add("gx",         [](){ return brain_inertial.gyroRate(vex::xaxis, vex::dps); });
+    logger.add("gy",         [](){ return brain_inertial.gyroRate(vex::yaxis, vex::dps); });
+    logger.add("gz",         [](){ return brain_inertial.gyroRate(vex::zaxis, vex::dps); });
+    logger.add("dist_front", [](){ return dist_front.objectDistance(mm); });
+    logger.add("dist_rear",  [](){ return dist_rear.objectDistance(mm); });
+    logger.add("optical_left.brightness", [](){ return optical_left.brightness(); });
+    logger.add("optical_right.brightness",[](){ return optical_right.brightness(); });
+
     while (true)
     {
-        // send_data_format();
+        logger.send_data_format();
         for (int i = 0; i < 10; i++)
         {
-            // send_structured_data();
-            int last_time = brain.Timer.time(msec);
+            logger.send_structured_data();
             send_vision_data();
-            printf("Time: %d\n", (int)(brain.Timer.time(msec)) - last_time);
             wait(100, msec);
         }
     }
