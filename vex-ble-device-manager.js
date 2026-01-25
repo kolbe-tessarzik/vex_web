@@ -1868,7 +1868,7 @@ function scriptLineToCommand(script) {
 }
 function scriptLineToCommandAIM(script, uuid) {
     let command = new AIMBLECommand();
-    //convert string uuid to uint16 
+    //convert string uuid to uint16
     command.active_cmd_uuid = new UInt16(uuid);
     try {
         if (!script) {
@@ -1974,7 +1974,7 @@ function scriptLineToCommandAIM(script, uuid) {
                 }
                 break;
             }
-            // drive for 90 mm at angle 0 and at 100 mm/s: CMD_DRIVE_FOR 90 0 0 100 0    
+            // drive for 90 mm at angle 0 and at 100 mm/s: CMD_DRIVE_FOR 90 0 0 100 0
             case "CMD_DRIVE_FOR": {
                 command.cmd_type = new UInt8(ProgramConst.PROG_CMD_EXE_SINGLE);
                 command.cmd_id = new UInt8(AimProgramCommands.CMD_DRIVE_FOR);
@@ -2910,7 +2910,7 @@ class VEXBLEDeviceManager {
         this.showAllBLEDevicesNear = false;
         this.isControllerUpdateRunning = false;
         this.controllerUpdateInterval = 0.050;
-        //admin / user channel 
+        //admin / user channel
         this.rx_buffer = undefined;
         this.ble_rxTimeout = undefined;
         this.cdc = new VexCDC();
@@ -3017,7 +3017,7 @@ class VEXBLEDeviceManager {
                                 this.printBuffer(new Uint8Array(rxBuffer), 32, "RX");
                                 clearTimeout(serialRxTimeout);
                                 resolve(rxBuffer);
-                                //detache callback for receiving data 
+                                //detache callback for receiving data
                                 EventSystem.off("VEXBLEBrowser.RXDataAdmin", onReceiveData);
                             }
                             else {
@@ -3026,7 +3026,7 @@ class VEXBLEDeviceManager {
                         };
                         this.rx_buffer = new ArrayBuffer(0);
                         this.printBuffer(sendData, 16, "TX");
-                        //attach callback for receiving data 
+                        //attach callback for receiving data
                         EventSystem.on("VEXBLEBrowser.RXDataAdmin", onReceiveData);
                         try {
                             yield writeCharacteristicValue(this.characteristics[BLECharacteristicsID.AIMRXData], sendData);
@@ -3161,7 +3161,7 @@ class VEXBLEDeviceManager {
             //let codevalue = dv.getUint32(0);
             //log3.debug('code is ' + this.cdc.hex8(codevalue));
             //show lockcode on the brain
-            //await this.ShowLockCodeOnBrain(true);  
+            //await this.ShowLockCodeOnBrain(true);
             //ask VEXcode to show the LockCode dialog and send the lock code
             EventSystem.fireEvent("VEXBLEBrowser.EnterLockCode", webble_gatt_uuid, UniqueDeviceID);
         });
@@ -3781,7 +3781,7 @@ class VEXBLEDeviceManager {
             }
         };
         this.getConnectedDeviceInfo = () => __awaiter(this, void 0, void 0, function* () {
-            // We can use the below code to get the device info to get the Model of the device instead of using `ex: this.productType == VEXProductTypes.VEXAIM` 
+            // We can use the below code to get the device info to get the Model of the device instead of using `ex: this.productType == VEXProductTypes.VEXAIM`
             // if (this.characteristics[BLECharacteristicsID.DevInfoModelNumber]) {
             //     const data = await readCharacteristicValue(this.characteristics[BLECharacteristicsID.DevInfoModelNumber]);
             //     const decoder = new TextDecoder("utf-8");
@@ -3895,7 +3895,7 @@ class VEXBLEDeviceManager {
             else if (this.firmwareVersionLocal && (!this.firmwareVersionLocal.isEmpty())) {
                 this.deviceInfo.updateNeeded = this.deviceInfo.appVersion.isLessThan(this.firmwareVersionLocal);
             }
-            //can not update bootloader for OneStickController 
+            //can not update bootloader for OneStickController
             this.deviceInfo.bootloaderUpdateNeeded = false;
         });
         this.getConnectedDeviceInfo123GO = () => __awaiter(this, void 0, void 0, function* () {
@@ -4052,7 +4052,7 @@ class VEXBLEDeviceManager {
                 this.deviceInfo.appVersion2 = VEXFirmwareVersion.fromString(firmwareVersion);
                 log3.debug("firmwareVersion: ", firmwareVersion);
             }
-            //read hardware revision 
+            //read hardware revision
             if (this.characteristics[BLECharacteristicsID.DevInfoHardwareRev]) {
                 const data = yield readCharacteristicValue(this.characteristics[BLECharacteristicsID.DevInfoHardwareRev]);
                 let hardwareRev = "";
@@ -4064,7 +4064,7 @@ class VEXBLEDeviceManager {
                     log3.error("device Name is not a valid UTF-8 sequence");
                 }
             }
-            //read firmware version for GP 
+            //read firmware version for GP
             if (this.characteristics[BLECharacteristicsID.DevInfoSoftware]) {
                 const data = yield readCharacteristicValue(this.characteristics[BLECharacteristicsID.DevInfoSoftware]);
                 const appVersion = decoder.decode(data);
@@ -4184,7 +4184,7 @@ class VEXBLEDeviceManager {
                 this.deviceInfo.appVersion2 = VEXFirmwareVersion.fromString(firmwareVersion);
                 log3.debug("firmwareVersion: ", firmwareVersion);
             }
-            //read hardware revision 
+            //read hardware revision
             if (this.characteristics[BLECharacteristicsID.DevInfoHardwareRev]) {
                 const data = yield readCharacteristicValue(this.characteristics[BLECharacteristicsID.DevInfoHardwareRev]);
                 let hardwareRev = "";
@@ -4321,7 +4321,7 @@ class VEXBLEDeviceManager {
                 this.deviceInfo.appVersion2 = VEXFirmwareVersion.fromString(firmwareVersion);
                 log3.debug("firmwareVersion: ", firmwareVersion);
             }
-            //read hardware revision 
+            //read hardware revision
             if (this.characteristics[BLECharacteristicsID.DevInfoHardwareRev]) {
                 const data = yield readCharacteristicValue(this.characteristics[BLECharacteristicsID.DevInfoHardwareRev]);
                 let hardwareRev = "";
@@ -5991,7 +5991,7 @@ class VEXBLEDeviceManager {
                         if (buttons.R3) {
                             buttonsAsInt |= (1 << 9);
                         }
-                        // update the range of the joystick values 
+                        // update the range of the joystick values
                         lx = Math.floor(buttons.leftAxisX * 127);
                         ly = -Math.floor(buttons.leftAxisY * 127);
                         rx = Math.floor(buttons.rightAxisX * 127);
@@ -6060,7 +6060,7 @@ class VEXBLEDeviceManager {
                         if (buttons.R3) {
                             buttonsAsInt |= (1 << 9);
                         }
-                        // update the range of the joystick values 
+                        // update the range of the joystick values
                         lx = Math.floor(buttons.leftAxisX * 127);
                         ly = -Math.floor(buttons.leftAxisY * 127);
                         rx = Math.floor(buttons.rightAxisX * 127);
@@ -6377,7 +6377,7 @@ class VEXBLEDeviceManager {
         if (this.characteristics[BLECharacteristicsID.DevInfoLog]) {
             this.characteristics[BLECharacteristicsID.DevInfoLog].addEventListener("characteristicvaluechanged", this.notificationHandlerDeviceLog);
         }
-        //AIM 
+        //AIM
         if (this.productType == VEXProductTypes.VEXAIM) {
             //admin data receive handler
             if (this.characteristics[BLECharacteristicsID.AIMTXData]) {
@@ -6387,7 +6387,7 @@ class VEXBLEDeviceManager {
             if (this.characteristics[BLECharacteristicsID.AIMTXUser]) {
                 this.characteristics[BLECharacteristicsID.AIMTXUser].addEventListener("characteristicvaluechanged", this.notificationHandlerAIMTXUser);
             }
-            //remote command status 
+            //remote command status
             if (this.characteristics[BLECharacteristicsID.AIMRemoteControlStatus]) {
                 this.characteristics[BLECharacteristicsID.AIMRemoteControlStatus].addEventListener("characteristicvaluechanged", this.notificationHandlerAIMRemoteControlStatus);
             }
@@ -6423,7 +6423,7 @@ class VEXBLEDeviceManager {
             this.enableFirmwareUpdateService(true);
         }
         if (this.productType == VEXProductTypes.VEXAIM || this.productType == VEXProductTypes.VEXIQ2Brain || this.productType == VEXProductTypes.VEXEXPBrain || this.productType == VEXProductTypes.V5_Brain) {
-            //TODO: - checkk characterstics UUID for v5/ iq and subscribe to chars when adding support 
+            //TODO: - checkk characterstics UUID for v5/ iq and subscribe to chars when adding support
             this.enableAdminService(true);
         }
         if (this.productType == VEXProductTypes.VEXAIM) {
@@ -8439,7 +8439,7 @@ class VEXCDCDevice {
         })
             .then((reply) => {
             log5.debug('download done', this.cdc.convertBufferToHexString(reply));
-            // check final reply from exit command 
+            // check final reply from exit command
             let status = true;
             let rep = this.decodeFileExitReply(reply);
             if (rep.ack !== VexCDC.CDC2_ACK_TYPES.CDC2_ACK) {
@@ -8496,7 +8496,7 @@ class VEXCDCDevice {
     */
     uploadData(name, length, progressCallback, doneCallback, vid) {
         // this should be handled by the caller
-        // we must be connected 
+        // we must be connected
         // if (!this.connected) {
         //     // error !
         //     if (doneCallback != undefined)
@@ -8852,7 +8852,7 @@ class VEXCDCDevice {
         log5.debug("program options/ini parameters : ", info);
         if (info.language === "python") {
             log5.debug("skipping vm check for python");
-            // configure the download for the 
+            // configure the download for the
             const linkInfo = this.getVMLinkInfo();
             this.downloadAddressSet(linkInfo.loadAddress);
             this.linkFileSet(linkInfo.linkFileVID, linkInfo.linkFile);
@@ -10630,7 +10630,7 @@ function crc8(buf, initvalue) {
     if (!_crc8Initialized) {
         crc8GenTable();
     }
-    // now calculate CRC8 
+    // now calculate CRC8
     for (j = 0; j < numberOfBytes; j++) {
         i = ((accumulator >>> 0) ^ buf[j]) & 0xFF;
         accumulator = ((accumulator << 8) ^ _crc8_table[i]) >>> 0;
@@ -11689,15 +11689,15 @@ async function SimulateControllerThroughCDC(state) {
     return await bleDeviceManager.SimulateControllerThroughCDC(state);
 }
 function enableALLLogger() {
-    getLogger("vex-web-ble-device-manager").enableAll();
-    getLogger("vex-web-ble-device-manager-cdc").enableAll();
-    getLogger("vex-web-ble-device-manager-cdcdevice").enableAll();
-    getLogger("vex-web-ble-device-manager-crc").enableAll();
-    getLogger("vex-web-ble-device-manager-ini").enableAll();
-    getLogger("vex-web-ble-device-manager-eventsystem").enableAll();
-    getLogger("vex-web-ble-device-manager-prog-utils").enableAll();
-    getLogger("vex-web-ble-device-manager-firmware").enableAll();
-    getLogger("vex-web-ble-device-manager-botstatus").enableAll();
+    logger.getLogger("vex-web-ble-device-manager").enableAll();
+    logger.getLogger("vex-web-ble-device-manager-cdc").enableAll();
+    logger.getLogger("vex-web-ble-device-manager-cdcdevice").enableAll();
+    logger.getLogger("vex-web-ble-device-manager-crc").enableAll();
+    logger.getLogger("vex-web-ble-device-manager-ini").enableAll();
+    logger.getLogger("vex-web-ble-device-manager-eventsystem").enableAll();
+    logger.getLogger("vex-web-ble-device-manager-prog-utils").enableAll();
+    logger.getLogger("vex-web-ble-device-manager-firmware").enableAll();
+    logger.getLogger("vex-web-ble-device-manager-botstatus").enableAll();
 }
 
 
