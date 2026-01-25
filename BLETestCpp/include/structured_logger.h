@@ -6,6 +6,20 @@
 #include <vector>
 // #include "static_vector.h"
 
+
+inline void print(const char* fmt, ...)
+{
+    va_list args;
+    va_start(args, fmt);
+    // Print formatted string
+    std::vprintf(fmt, args);
+    va_end(args);
+
+    // Append newline and flush
+    std::putchar('\n');
+    std::fflush(stdout);
+}
+
 // ------------------------------------------------------------
 // Compile-time fmt_code lookup
 // ------------------------------------------------------------

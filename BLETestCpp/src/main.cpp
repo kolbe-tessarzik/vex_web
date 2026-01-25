@@ -283,7 +283,7 @@ void pack_vision_object(std::vector<uint8_t>& buf, vex::aivision::object& obj)
     const uint8_t obj_type = get_vision_object_type(obj);
     if (obj_type == 0xFF)
     {
-        printf("Unsupported objectType %d\n", obj.type);
+        print("Unsupported objectType %d", obj.type);
         return;
     }
     uint8_t obj_id = obj_type | (obj.id & 0b111111);
@@ -355,14 +355,14 @@ void send_vision_data()
 
 void print_something(void)
 {
-    printf("Hello from the boring console!!!\n");
+    print("Hello from the boring console!!!");
 }
 
 void print_num(void)
 {
     static int32_t num = 0;
     num += 1;
-    printf("%lu\n", num);
+    print("%lu", num);
 }
 
 StructuredLogger logger{};
