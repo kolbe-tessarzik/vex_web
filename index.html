@@ -785,6 +785,7 @@
     let directoryHandles = [];
     let attrs = {};
     let reconnectBrain = null;
+    let last_data_update = 0;
 
     /*=============================================================================
     * Table with program pickers and action buttons
@@ -1974,7 +1975,9 @@
     function update_graph() {
       graph_data.push(graph_data.shift());
       graph_data[graph_data.length - 1] = { ...data_dict };
-
+      if ((Date.now() - last_data_update) > 1000) {
+        myChart.options.plugins.title.text = 'Start Program for Live Data';
+      }
     }
 
     function updateDatasets() {
@@ -1996,6 +1999,7 @@
             tension: 0,
           };
           myChart.data.datasets.push(dataset);
+          myChart.options.plugins.title.text = 'Data is Live';
         }
         i++;
       }
@@ -2026,6 +2030,7 @@
         data_str += `${name}: ${String(val.toFixed(1)).padStart(10)}\n`;
       }
       dataEl.textContent = data_str;
+      last_data_update = Date.now();
     }
 
     /**
@@ -2508,6 +2513,15 @@
           animation: false,
           responsive: true,
           maintainAspectRatio: false,
+          plugins: {
+            title: {
+                display: true,
+                text: 'Waiting for data...',
+                font: {
+                    size: 20, // <== Set the desired font size in pixels
+                },
+            }
+        },
           scales: {
             y: {
               min: -180,    // force bottom of y-axis
@@ -2518,8 +2532,16 @@
               min: -2,    // force bottom of y-axis
               max: 2,    // force top of y-axis
               position: 'right',
+            },
+            x: { // Use 'x' for Chart.js v3+ (was 'xAxes' in v2)
+              display: true, // Ensure the x-axis is displayed
+              type: 'category', // This is the default, but good to be explicit
+              ticks: {
+                  autoSkip: false, // Prevents Chart.js from hiding labels for spacing
+                  // You can add other tick configurations here
+              }
             }
-          }
+          },
         }
       };
 
@@ -2621,6 +2643,7 @@
 
     disable_buttons();
     init("IQ2");
+    createChart();
     connectBtn.addEventListener('click', connect);
     clearBtn.addEventListener('click', clearBoth);
     renameBtn.addEventListener('click', renameBrain);
