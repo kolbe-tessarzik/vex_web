@@ -2011,6 +2011,7 @@
     */
     function unpack_vals(data, index, length) {
       // const view = new DataView(data.buffer, data.byteOffset + index, length);
+      last_data_update = Date.now();
 
       for (let i = index; i < index + length && i < data.byteLength;) {
         let code;
@@ -2031,7 +2032,6 @@
         data_str += `${name}: ${String(val.toFixed(1)).padStart(10)}\n`;
       }
       dataEl.textContent = data_str;
-      last_data_update = Date.now();
     }
 
     /**

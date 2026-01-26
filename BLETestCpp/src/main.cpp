@@ -18,6 +18,7 @@ auto reverse = vex::reverse;
 auto msec    = vex::msec;
 auto seconds = vex::seconds;
 auto mm = vex::mm;
+auto inches = vex::inches;
 
 
 // START IQ MACROS
@@ -250,8 +251,8 @@ int main()
     logger.add("gx",         [](){ return brain_inertial.gyroRate(vex::xaxis, vex::dps); }, true);
     logger.add("gy",         [](){ return brain_inertial.gyroRate(vex::yaxis, vex::dps); }, true);
     logger.add("gz",         [](){ return brain_inertial.gyroRate(vex::zaxis, vex::dps); }, true);
-    logger.add("dist_front", [](){ return dist_front.objectDistance(mm); });
-    logger.add("dist_rear",  [](){ return dist_rear.objectDistance(mm); });
+    logger.add("dist_front", [](){ return dist_front.objectDistance(inches); });
+    logger.add("dist_rear",  [](){ return dist_rear.objectDistance(inches); });
     logger.add("optical_left.brightness", [](){ return optical_left.brightness(); });
     logger.add("optical_right.brightness",[](){ return optical_right.brightness(); });
 
