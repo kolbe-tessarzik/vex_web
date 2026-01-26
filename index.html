@@ -1976,7 +1976,7 @@
     }
 
     function updateDatasets() {
-      if (myChart === null) return;
+      createChart();
       const cookie = JSON.parse(localStorage.getItem('GraphShownLines')) ?? {};
       let i = 0;
       for (const name of Object.keys(data_dict)) {
@@ -2497,6 +2497,12 @@
       'rgba(128, 0, 0, 1)'        // dark red
     ];
 
+    function createChart() {
+      if (!myChart) {
+        const ctx = canvasEl.getContext('2d');
+        myChart = new Chart(ctx, config);
+      }
+    }
 
     // Show/hide chart + overlay
     function showHideChart() {
