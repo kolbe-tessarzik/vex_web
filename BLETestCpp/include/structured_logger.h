@@ -3,7 +3,6 @@
 #include <cstring>
 #include <functional>
 #include <type_traits>
-#include <vector>
 #include "static_vector.h"
 
 
@@ -206,7 +205,8 @@ private:
     std::array<uint8_t, 35*AIVISION_MAX_OBJECTS> m_aiBufferStorage{};
     static_vector<uint8_t> m_aiBuffer{m_aiBufferStorage};
 
-    std::vector<EntryBase *> m_registry{};
+    std::array<EntryBase *, 50> m_registryStorage{};
+    static_vector<EntryBase *> m_registry{m_registryStorage};
     uint16_t m_next_code = 0;
     int m_fmt_size = 0;
     int m_data_size = 0;
@@ -216,6 +216,11 @@ private:
     template<typename T>
     void add_impl(const std::string name, std::function<T()> func)
     {
+        if (m_registry.full())
+        {
+            print("add_impl failure: m_registry is full; can't add '%s'", name);
+            return;
+        }
         EntryBase * const entry = (EntryBase *)(new Entry<T>(m_next_code++, name, func));
         m_fmt_size += entry->fmt_size();
         m_data_size += entry->data_size();

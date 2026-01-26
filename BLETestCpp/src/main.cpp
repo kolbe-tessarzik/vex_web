@@ -188,28 +188,12 @@ bool RemoteControlCodeEnabled = true;
 #pragma endregion VEXcode Generated Robot Configuration
 
 //----------------------------------------------------------------------------
-//
-//    Module:       main.cpp
-//    Author:       {author}
-//    Created:      {date}
-//    Description:  IQ project
-//
-//----------------------------------------------------------------------------
-
-// Include the IQ Library
 #include "iq_cpp.h"
 
 #include "structured_logger.h"
-
 #include <cstdint>
-#include <vector>
 #include <cstring>
 #include <type_traits>
-
-struct valForPack {
-    u_char format;
-    char* name;
-};
 
 double normalize(double angle)
 {
@@ -222,111 +206,6 @@ double normalize(double angle)
         angle -= 360;
     }
     return angle;
-}
-
-/*
-idc = {
-    0:  ("Axis A",  "b",  lambda: controller.axisA.position()),
-    1:  ("Axis B",  "b",  lambda: controller.axisB.position()),
-    2:  ("Axis C",  "b",  lambda: controller.axisC.position()),
-    3:  ("Axis D",  "b",  lambda: controller.axisD.position()),
-    4:  ("Heading", "f",  lambda: normalize(brain_inertial.heading())),
-    5:  ("Rotation", "f", lambda: brain_inertial.rotation()),
-    6:  ("Roll", "f",     lambda: brain_inertial.orientation(ROLL)),
-    7:  ("Pitch", "f",    lambda: brain_inertial.orientation(PITCH)),
-    8:  ("Yaw", "f",      lambda: brain_inertial.orientation(YAW)),
-    9:  ("ax", "f",       lambda: brain_inertial.acceleration(AxisType.XAXIS)),
-    10: ("ay", "f",       lambda: brain_inertial.acceleration(AxisType.YAXIS)),
-    11: ("az", "f",       lambda: brain_inertial.acceleration(AxisType.ZAXIS)),
-    12: ("gx", "f",       lambda: brain_inertial.gyro_rate(AxisType.XAXIS)),
-    13: ("gy", "f",       lambda: brain_inertial.gyro_rate(AxisType.YAXIS)),
-    14: ("gz", "f",       lambda: brain_inertial.gyro_rate(AxisType.ZAXIS)),
-    15: ("dist_front", "f", lambda: dist_front.object_distance(MM)),
-    16: ("dist_rear", "f",  lambda: dist_rear.object_distance(MM)),
-    17: ("optical_left.brightness", "f",   lambda: optical_left.brightness()),
-    18: ("optical_right.brightness", "f",  lambda: optical_right.brightness()),
-}
-*/
-// for i in range(15, 100):
-// idc[i] = ("Test {i}".format(i = i), "f", lambda : urandom.uniform(-180, 180))
-
-void pack_vision_object(std::vector<uint8_t>& buf, vex::aivision::object& obj)
-{
-    // obj.id; store in bottom 6 bits of first byte
-    // classroom objects: 0 - 7
-    // VIQRC Mix & Match objects: 0 - 3
-    // AprilTag: 0 - 36
-    const uint8_t obj_type = get_vision_object_type(obj);
-    if (obj_type == 0xFF)
-    {
-        print("Unsupported objectType %d", obj.type);
-        return;
-    }
-    uint8_t obj_id = obj_type | (obj.id & 0b111111);
-    buf.push_back(obj_id);
-    pack_var_int(buf, obj.originX);    //  0-320
-    pack_var_int(buf, obj.originY);    //  0-240
-    pack_var_int(buf, obj.centerX);    //  0-320
-    pack_var_int(buf, obj.centerY);    //  0-240
-    pack_var_int(buf, obj.width);      //  1-320
-    pack_var_int(buf, obj.height);     //  1-240
-    pack_var_int(buf, obj.score);      //  1-100
-    pack(buf, obj.angle);              //  0-360; float
-    if (obj.type == vex::aivision::objectType::tagObject)
-    {
-        // only pack if it's an AprilTag
-        pack_var_int(buf, obj.tag.x[0]);
-        pack_var_int(buf, obj.tag.y[0]);
-        pack_var_int(buf, obj.tag.x[1]);
-        pack_var_int(buf, obj.tag.y[1]);
-        pack_var_int(buf, obj.tag.x[2]);
-        pack_var_int(buf, obj.tag.y[2]);
-        pack_var_int(buf, obj.tag.x[3]);
-        pack_var_int(buf, obj.tag.y[3]);
-    }
-}
-
-
-void send_vision_data()
-{
-    ai_vision.takeSnapshot(vex::aivision::ALL_OBJECTS);
-    uint32_t num_objs = 0;
-    uint32_t num_tags = 0;
-    const int objs_len = ai_vision.objects.getLength();
-    for (int i = 0; i < objs_len; i++)
-    {
-        vex::aivision::object obj = ai_vision.objects[i];
-        if (obj.exists)
-        {
-            if (obj.type == vex::aivision::objectType::tagObject)
-            {
-                num_objs++;
-            }
-            else
-            {
-                num_tags++;
-            }
-        }
-    }
-    std::vector<uint8_t> buf{};
-    const int header_len = 5;
-    buf.reserve(header_len + (num_tags * 35) + (num_objs * 19));
-    buf.push_back(0xc0); // special header
-    buf.push_back(0xde); // special header
-    buf.push_back(0x49); // ai_vision_command
-    buf.push_back(0x00); // fill length in here
-    buf.push_back(0x00); // fill length in here
-    for (int i = 0; i < objs_len; i++)
-    {
-        vex::aivision::object& obj = ai_vision.objects[i];
-        if (obj.exists)
-        {
-            pack_vision_object(buf, obj);
-        }
-    }
-    pack_len(buf, 3);
-    fwrite(buf.data(), 1, buf.size(), stdout);
-    fflush(stdout);
 }
 
 void print_something(void)
