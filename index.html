@@ -701,6 +701,7 @@
   <div class="row">
     <h3>Brain Console</h3>
     <button id="clearBtn">Clear</button>
+    <pre id="time">hi</pre>
   </div>
   <div id="stdout"></div>
   <h3>Log</h3>
@@ -1762,6 +1763,7 @@
     const modalSubmitBtn = document.getElementById("modalSubmitBtn");
     const modalCancelBtn = document.getElementById("modalCancelBtn");
     const modalHeader = document.getElementById("modal-header");
+    const timeDiv    =  document.getElementById("time");
 
     function modalPrompt(prompt, regex, header, input_max_len = 0, default_input = "") {
       return new Promise((resolve, reject) => {
@@ -2325,7 +2327,45 @@
       }
     }
 
+    let last_update = Date.now();
+    function update_stats() {
+      const now = Date.now();
+      const time_diff = now - last_update;
+      const bytesPerSecond = (byte_count / time_diff) * 1000;
+      const packetsPerSecond = (packet_count / time_diff) * 1000;
+      const BytesPerPacket = packet_count ? (byte_count / packet_count) : 0;
+      timeDiv.textContent = bytesPerSecond.toFixed(0).padStart(5) + " B/s " +
+                            packetsPerSecond.toFixed(0).padStart(2) + " pkt/s " +
+                            BytesPerPacket.toFixed(0).padStart(3) + " B/pkt\n";
+      if (false) {
+        //true to turn on per-packet-size histogram
+        const sizes = Object.keys(packet_count_by_size).map(s => Number(s)).sort((a, b) => a - b);
+        sizes.forEach(size => {
+          const count = packet_count_by_size[size];
+          timeDiv.textContent += size.toFixed(0).padStart(4) + "B: " + "█".repeat(count) + "\n";
+          packet_count_by_size[size] = 0;
+        });
+      }
+      packet_count = 0;
+      byte_count = 0;
+      last_update = now;
+    }
+
+    setInterval(update_stats, 500);
+
+    let last_packet_time = Date.now();
+    let packet_count = 0;
+    let byte_count = 0;
+    let packet_count_by_size = {};
+
     function stdout_handler(event) {
+      let packet_size = event.target.value.byteLength
+      const now = Date.now();
+      const time_diff = now - last_packet_time;
+      last_packet_time = now;
+      packet_count += 1;
+      byte_count += packet_size;
+      packet_count_by_size[packet_size] = (packet_count_by_size[packet_size] || 0) + 1;
       const combinedBuffer = combineArrayBuffers(byteBuffer, event.target.value.buffer);
       // clear byteBuffer, if we still need it, we will write into it again
       byteBuffer = new ArrayBuffer(0);
