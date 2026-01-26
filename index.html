@@ -1886,7 +1886,7 @@
     }
 
     async function promptForNewNameModal() {
-      return modalPrompt("Update Brain Name", /^\S*$/, "Rename", 0, attrs.robotname ?? "");
+      return modalPrompt("Update Brain Name", /^\S*$/, "Rename", 0, bleDeviceManager.deviceInfo.name ?? "");
     }
 
     async function promptForClearFoldersModal() {
@@ -2377,6 +2377,7 @@
     function disconnect_callback() {
       reconnectBrain = bleDeviceManager.device;
       reconnectBtn.classList.remove("hidden");
+      reconnectBtn.textContent = `Reconnect to '${bleDeviceManager.deviceInfo.name || 'Brain'}'`;
       disable_buttons();
       disconnect();
       attrs = {};
@@ -2439,7 +2440,7 @@
       bleDeviceManager.device.removeEventListener("gattserverdisconnected", disconnect_callback);
       bleDeviceManager.device.addEventListener("gattserverdisconnected", disconnect_callback);
 
-      enable_buttons()
+      enable_buttons();
       connectBtn.textContent = "Disconnect";
       connectBtn.disabled = false;
       connectBtn.removeEventListener('click', connect);
