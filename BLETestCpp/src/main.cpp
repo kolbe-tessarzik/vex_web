@@ -250,30 +250,6 @@ idc = {
 // for i in range(15, 100):
 // idc[i] = ("Test {i}".format(i = i), "f", lambda : urandom.uniform(-180, 180))
 
-
-uint8_t get_vision_object_type(vex::aivision::object& obj)
-{
-    // encode obj.type in the top 2 bits of the returned byte
-    switch (obj.type)
-    {
-        case vex::aivision::objectType::colorObject:
-            return 0b00000000;
-
-        case vex::aivision::objectType::codeObject:
-            return 0b01000000;
-
-        case vex::aivision::objectType::modelObject:
-            return 0b10000000;
-
-        case vex::aivision::objectType::tagObject:
-            return 0b11000000;
-
-        default:
-            return 0xFF;
-    }
-}
-
-
 void pack_vision_object(std::vector<uint8_t>& buf, vex::aivision::object& obj)
 {
     // obj.id; store in bottom 6 bits of first byte
@@ -406,7 +382,8 @@ int main()
         for (int i = 0; i < 10; i++)
         {
             logger.send_structured_data();
-            send_vision_data();
+            ai_vision.takeSnapshot(vex::aivision::ALL_OBJECTS);
+            logger.send_vision_data(ai_vision.objects);
             wait(100, msec);
         }
     }
