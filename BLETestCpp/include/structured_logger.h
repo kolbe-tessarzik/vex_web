@@ -81,16 +81,16 @@ template<typename T> struct always_false : std::false_type {};
 template <typename T> struct fmt {
    static_assert(always_false<T>::value, "Unsupported type");
 };
-template <> struct fmt<int8_t>   { enum { code = 'b' }; };
-template <> struct fmt<uint8_t>  { enum { code = 'B' }; };
-template <> struct fmt<int16_t>  { enum { code = 'h' }; };
-template <> struct fmt<uint16_t> { enum { code = 'H' }; };
-template <> struct fmt<int32_t>  { enum { code = 'i' }; };
-template <> struct fmt<uint32_t> { enum { code = 'I' }; };
-template <> struct fmt<int64_t>  { enum { code = 'q' }; };
-template <> struct fmt<uint64_t> { enum { code = 'Q' }; };
-template <> struct fmt<float>    { enum { code = 'f' }; };
-template <> struct fmt<double>   { enum { code = 'd' }; };
+template <> struct fmt<int8_t>   { enum : uint8_t { code = 'b' }; };
+template <> struct fmt<uint8_t>  { enum : uint8_t { code = 'B' }; };
+template <> struct fmt<int16_t>  { enum : uint8_t { code = 'h' }; };
+template <> struct fmt<uint16_t> { enum : uint8_t { code = 'H' }; };
+template <> struct fmt<int32_t>  { enum : uint8_t { code = 'i' }; };
+template <> struct fmt<uint32_t> { enum : uint8_t { code = 'I' }; };
+template <> struct fmt<int64_t>  { enum : uint8_t { code = 'q' }; };
+template <> struct fmt<uint64_t> { enum : uint8_t { code = 'Q' }; };
+template <> struct fmt<float>    { enum : uint8_t { code = 'f' }; };
+template <> struct fmt<double>   { enum : uint8_t { code = 'd' }; };
 
 // Core helper: append an integer value in big-endian byte order
 template<typename IntT, typename Container>
@@ -207,16 +207,18 @@ private:
     uint16_t m_code;
     std::string m_name;
     std::function<T()> m_getter;
+    bool m_small_scale;
     int m_fmt_size;
     int m_data_size;
 
 public:
-    Entry(const uint16_t code, const std::string &name, std::function<T()> getter)
+    Entry(const uint16_t code, const std::string &name, std::function<T()> getter, bool small_scale = false)
         : m_code(code)
         , m_name(name)
         , m_getter(getter)
         , m_fmt_size(var_int_size(code) + 1 + name.size() + 1) // code + fmt + name + null
         , m_data_size(var_int_size(code) + sizeof(T)) // code + data
+        , m_small_scale(small_scale)
     {}
 
     virtual uint16_t code() const override { return m_code; }
@@ -243,8 +245,10 @@ public:
         }
         // send code to identify value
         pack_var_int(buf, m_code);
+        const uint8_t fmt_code = m_small_scale ? (fmt<T>::code | 0b10000000) : fmt<T>::code;
+        print("%d: %d", m_code, fmt_code);
         // send format code
-        buf.push_back(fmt<T>::code);
+        buf.push_back(fmt_code);
         // send name (null-terminated)
         buf.append(m_name);
         buf.push_back('\0');
@@ -269,14 +273,14 @@ private:
     static constexpr int header_len = 5;
 
     template<typename T>
-    void add_impl(const std::string name, std::function<T()> func)
+    void add_impl(const std::string name, std::function<T()> func, bool small_scale = false)
     {
         if (m_registry.full())
         {
             print("add_impl failure: m_registry is full; can't add '%s'", name);
             return;
         }
-        EntryBase * const entry = (EntryBase *)(new Entry<T>(m_next_code++, name, func));
+        EntryBase * const entry = (EntryBase *)(new Entry<T>(m_next_code++, name, func, small_scale));
         m_fmt_size += entry->fmt_size();
         m_data_size += entry->data_size();
         m_registry.push_back(entry);
@@ -286,9 +290,9 @@ public:
     StructuredLogger() {}
 
     template<typename Func>
-    void add(const std::string name, Func func)
+    void add(const std::string name, Func func, bool small_scale = false)
     {
-        add_impl(name, std::function<decltype(func())()>(func));
+        add_impl(name, std::function<decltype(func())()>(func), small_scale);
     }
 
     template<typename Container>

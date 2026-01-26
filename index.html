@@ -1926,6 +1926,7 @@
     }
 
     const fmt_for_data = {};
+    const scale_for_data = {};
     const code_lens = {
       "b": 1,
       "B": 1,
@@ -1959,7 +1960,7 @@
         "d": (data, index) => data.getFloat64(index),
       }
       const func = fmt_funcs[fmt_code];
-      if (func === null) {
+      if (func === undefined) {
         console.error(`Unsupported format code: ${fmt_code}`);
       }
       return func(data, index);
@@ -1991,7 +1992,7 @@
           const dataset = {
             label: name,
             data: new Array(40).fill(0),
-            yAxisID: 'y',
+            yAxisID: scale_for_data[name],
             borderColor: color,
             backgroundColor: color.replace('1)', '0.2)'),
             hidden: (cookie[name]) || (name != 'Heading'),
@@ -2040,7 +2041,9 @@
       for (let i = 0; i < msg.byteLength;) {
         let code;
         [code, i] = getVarInt(msg, i);
-        const fmt = msg.getUint8(i);
+        const fmt_byte = msg.getUint8(i);
+        const fmt = fmt_byte & 0b01111111;
+        const small_scale = (fmt_byte >> 7) & 0b00000001;
         i += 1;
 
         const j = msg.byteOffset + i;
@@ -2049,6 +2052,7 @@
           const nameLength = nullByteIndex - j;
           const name = (new TextDecoder()).decode(new DataView(msg.buffer, j, nameLength));
           fmt_for_data[code] = [name, String.fromCharCode(fmt)];
+          scale_for_data[name] = small_scale ? 'y2': 'y';
           if (data_dict[name] === undefined) {
             data_dict[name] = 0;
           }

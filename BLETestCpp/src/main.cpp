@@ -244,12 +244,12 @@ int main()
     logger.add("Roll",       [](){ return brain_inertial.orientation(vex::roll, degrees); });
     logger.add("Pitch",      [](){ return brain_inertial.orientation(vex::pitch, degrees); });
     logger.add("Yaw",        [](){ return brain_inertial.orientation(vex::yaw, degrees); });
-    logger.add("ax",         [](){ return brain_inertial.acceleration(vex::xaxis); });
-    logger.add("ay",         [](){ return brain_inertial.acceleration(vex::yaxis); });
-    logger.add("az",         [](){ return brain_inertial.acceleration(vex::zaxis); });
-    logger.add("gx",         [](){ return brain_inertial.gyroRate(vex::xaxis, vex::dps); });
-    logger.add("gy",         [](){ return brain_inertial.gyroRate(vex::yaxis, vex::dps); });
-    logger.add("gz",         [](){ return brain_inertial.gyroRate(vex::zaxis, vex::dps); });
+    logger.add("ax",         [](){ return brain_inertial.acceleration(vex::xaxis); }, true);
+    logger.add("ay",         [](){ return brain_inertial.acceleration(vex::yaxis); }, true);
+    logger.add("az",         [](){ return brain_inertial.acceleration(vex::zaxis); }, true);
+    logger.add("gx",         [](){ return brain_inertial.gyroRate(vex::xaxis, vex::dps); }, true);
+    logger.add("gy",         [](){ return brain_inertial.gyroRate(vex::yaxis, vex::dps); }, true);
+    logger.add("gz",         [](){ return brain_inertial.gyroRate(vex::zaxis, vex::dps); }, true);
     logger.add("dist_front", [](){ return dist_front.objectDistance(mm); });
     logger.add("dist_rear",  [](){ return dist_rear.objectDistance(mm); });
     logger.add("optical_left.brightness", [](){ return optical_left.brightness(); });
