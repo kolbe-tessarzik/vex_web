@@ -704,8 +704,6 @@
     <pre id="time">hi</pre>
   </div>
   <div id="stdout"></div>
-  <h3>Log</h3>
-  <div id="log"></div>
 
   <!-- modal backdrop goes LAST so it overlays everything -->
   <div id="backdrop" class="modal-backdrop">
@@ -763,7 +761,6 @@
     const slotPicker = document.getElementById("slotPicker");
     const clearBtn = document.getElementById('clearBtn')
     const stdout = document.getElementById('stdout');
-    const logEl = document.getElementById('log');
     const dataEl = document.getElementById('structured');
     const overlay = document.getElementById('overlay');
     const container = document.getElementById('chartContainer');
@@ -1733,26 +1730,9 @@
       renameBtn.disabled = true;
     }
 
-    function log(msg) {
-      const line = document.createElement('div');
-      line.textContent = msg;
-      logEl.appendChild(line);
-      logEl.scrollTop = logEl.scrollHeight;
-    }
-
-    function clearLog() {
-      logEl.innerHTML = '';
-      logEl.scrollTop = 0;
-    }
-
     function clearStdout() {
       stdout.innerHTML = '';
       stdout.scrollTop = 0;
-    }
-
-    function clearBoth() {
-      clearLog();
-      clearStdout();
     }
 
     // =======================================================
@@ -1902,7 +1882,7 @@
         return;
       }
       await setRobotName(new_name);
-      log(`Brain renamed ${new_name}`);
+      console.log(`Brain renamed ${new_name}`);
     }
 
     // =======================================================
@@ -2437,7 +2417,7 @@
 
     async function EnterLockCode_callback(webble_gatt_uuid, UniqueDeviceID) {
       let pair_key = `BLE_LOCK_KEY${UniqueDeviceID.toString(10)}`;
-      log(`Looking for cookie: ${pair_key}`);
+      console.log(`Looking for cookie: ${pair_key}`);
       let pair_code = localStorage.getItem(pair_key);
 
       do {
@@ -2455,13 +2435,13 @@
         }
         let unlocked = await SendLockCode(Number(pair_code));
         if (!unlocked) {
-          log('Pair code failed');
+          console.log('Pair code failed');
           pair_code = null;
         }
       } while (pair_code === null)
 
       // pairing successful; store/update the code
-      log(`Storing code: ${pair_code} to key: ${pair_key}`);
+      console.log(`Storing code: ${pair_code} to key: ${pair_key}`);
       localStorage.setItem(pair_key, pair_code);
     }
 
@@ -2649,7 +2629,7 @@
     init("IQ2");
     createChart();
     connectBtn.addEventListener('click', connect);
-    clearBtn.addEventListener('click', clearBoth);
+    clearBtn.addEventListener('click', clearStdout);
     renameBtn.addEventListener('click', renameBrain);
     reconnectBtn.addEventListener("click", () => {
       reconnectBtn.classList.add("hidden");
