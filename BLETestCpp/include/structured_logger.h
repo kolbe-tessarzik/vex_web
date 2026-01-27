@@ -245,9 +245,8 @@ public:
         }
         // send code to identify value
         pack_var_int(buf, m_code);
-        const uint8_t fmt_code = m_small_scale ? (fmt<T>::code | 0b10000000) : fmt<T>::code;
-        print("%d: %d", m_code, fmt_code);
         // send format code
+        const uint8_t fmt_code = m_small_scale ? (fmt<T>::code | 0b10000000) : fmt<T>::code;
         buf.push_back(fmt_code);
         // send name (null-terminated)
         buf.append(m_name);

@@ -221,6 +221,22 @@ void print_num(void)
     print("%lu", num);
 }
 
+uint16_t get_button_states(void)
+{
+    return (
+          (controller.ButtonRDown.pressing() << 0)
+        | (controller.ButtonRUp.pressing()   << 1)
+        | (controller.ButtonR3.pressing()    << 2)
+        | (controller.ButtonFUp.pressing()   << 3)
+        | (controller.ButtonFDown.pressing() << 4)
+        | (controller.ButtonEDown.pressing() << 5)
+        | (controller.ButtonEUp.pressing()   << 6)
+        | (controller.ButtonL3.pressing()    << 7)
+        | (controller.ButtonLUp.pressing()   << 8)
+        | (controller.ButtonLDown.pressing() << 9)
+    );
+}
+
 StructuredLogger logger{};
 
 int main()
@@ -236,25 +252,27 @@ int main()
     brain.buttonUp.pressed(print_num);
     brain.buttonDown.pressed(print_something);
 
-    logger.add("Axis A",     [](){ return controller.AxisA.position(); });
-    logger.add("Axis B",     [](){ return controller.AxisB.position(); });
-    logger.add("Axis C",     [](){ return controller.AxisC.position(); });
-    logger.add("Axis D",     [](){ return controller.AxisD.position(); });
-    logger.add("Heading",    [](){ return normalize(brain_inertial.heading()); });
-    logger.add("Rotation",   [](){ return brain_inertial.rotation(); });
-    logger.add("Roll",       [](){ return brain_inertial.orientation(vex::roll, degrees); });
-    logger.add("Pitch",      [](){ return brain_inertial.orientation(vex::pitch, degrees); });
-    logger.add("Yaw",        [](){ return brain_inertial.orientation(vex::yaw, degrees); });
-    logger.add("ax",         [](){ return brain_inertial.acceleration(vex::xaxis); }, true);
-    logger.add("ay",         [](){ return brain_inertial.acceleration(vex::yaxis); }, true);
-    logger.add("az",         [](){ return brain_inertial.acceleration(vex::zaxis); }, true);
-    logger.add("gx",         [](){ return brain_inertial.gyroRate(vex::xaxis, vex::dps); }, true);
-    logger.add("gy",         [](){ return brain_inertial.gyroRate(vex::yaxis, vex::dps); }, true);
-    logger.add("gz",         [](){ return brain_inertial.gyroRate(vex::zaxis, vex::dps); }, true);
-    logger.add("dist_front", [](){ return dist_front.objectDistance(inches); });
-    logger.add("dist_rear",  [](){ return dist_rear.objectDistance(inches); });
-    logger.add("optical_left.brightness", [](){ return optical_left.brightness(); });
-    logger.add("optical_right.brightness",[](){ return optical_right.brightness(); });
+    logger.add("ButtonStates", get_button_states);
+
+    logger.add("Axis A",     []() -> int8_t { return controller.AxisA.position(); });
+    logger.add("Axis B",     []() -> int8_t { return controller.AxisB.position(); });
+    logger.add("Axis C",     []() -> int8_t { return controller.AxisC.position(); });
+    logger.add("Axis D",     []() -> int8_t { return controller.AxisD.position(); });
+    logger.add("Heading",    []() -> float { return normalize(brain_inertial.heading()); });
+    logger.add("Rotation",   []() -> float { return brain_inertial.rotation(); });
+    logger.add("Roll",       []() -> float { return brain_inertial.orientation(vex::roll, degrees); });
+    logger.add("Pitch",      []() -> float { return brain_inertial.orientation(vex::pitch, degrees); });
+    logger.add("Yaw",        []() -> float { return brain_inertial.orientation(vex::yaw, degrees); });
+    logger.add("ax",         []() -> float { return brain_inertial.acceleration(vex::xaxis); }, true);
+    logger.add("ay",         []() -> float { return brain_inertial.acceleration(vex::yaxis); }, true);
+    logger.add("az",         []() -> float { return brain_inertial.acceleration(vex::zaxis); }, true);
+    logger.add("gx",         []() -> float { return brain_inertial.gyroRate(vex::xaxis, vex::dps); }, true);
+    logger.add("gy",         []() -> float { return brain_inertial.gyroRate(vex::yaxis, vex::dps); }, true);
+    logger.add("gz",         []() -> float { return brain_inertial.gyroRate(vex::zaxis, vex::dps); }, true);
+    logger.add("dist_front", []() -> int16_t { return dist_front.objectDistance(mm); });
+    logger.add("dist_rear",  []() -> int16_t { return dist_rear.objectDistance(mm); });
+    logger.add("optical_left.brightness", []() -> float { return optical_left.brightness(); });
+    logger.add("optical_right.brightness",[]() -> float { return optical_right.brightness(); });
 
     while (true)
     {

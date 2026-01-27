@@ -696,7 +696,7 @@
   </table>
   <div class="row">
     <canvas id="visionCanvas" width="1280" height="960" style="border:1px solid #000; background: #555555"></canvas>
-    <div id="structured"></div>
+    <pre id="structured"></pre>
   </div>
   <div class="row">
     <h3>Brain Console</h3>
@@ -1907,45 +1907,21 @@
 
     const fmt_for_data = {};
     const scale_for_data = {};
-    const code_lens = {
-      "b": 1,
-      "B": 1,
-      "h": 2,
-      "H": 2,
-      "i": 4,
-      "I": 4,
-      "l": 4,
-      "L": 4,
-      "q": 8,
-      "Q": 8,
-      "e": 2,
-      "f": 4,
-      "d": 8,
+    const fmt_funcs = {
+      "b": (d, i) => [d.getInt8(i),    i+1],
+      "B": (d, i) => [d.getUint8(i),   i+1],
+      "h": (d, i) => [d.getInt16(i),   i+2],
+      "H": (d, i) => [d.getUint16(i),  i+2],
+      "i": (d, i) => [d.getInt32(i),   i+4],
+      "I": (d, i) => [d.getUint32(i),  i+4],
+      "l": (d, i) => [d.getInt32(i),   i+4],
+      "L": (d, i) => [d.getUint32(i),  i+4],
+      "q": (d, i) => [d.getInt64(i),   i+8],
+      "Q": (d, i) => [d.getUint64(i),  i+8],
+      "e": (d, i) => [d.getFloat16(i), i+2],
+      "f": (d, i) => [d.getFloat32(i), i+4],
+      "d": (d, i) => [d.getFloat64(i), i+8],
     };
-
-    function get_data(data, index, fmt_code) {
-      const fmt_funcs = {
-        "b": (data, index) => data.getInt8(index),
-        "B": (data, index) => data.getUint8(index),
-        "h": (data, index) => data.getInt16(index),
-        "H": (data, index) => data.getUint16(index),
-        "i": (data, index) => data.getInt32(index),
-        "I": (data, index) => data.getUint32(index),
-        "l": (data, index) => data.getInt32(index),
-        "L": (data, index) => data.getUint32(index),
-        "q": (data, index) => data.getInt64(index),
-        "Q": (data, index) => data.getUint64(index),
-        "e": (data, index) => data.getFloat16(index),
-        "f": (data, index) => data.getFloat32(index),
-        "d": (data, index) => data.getFloat64(index),
-      }
-      const func = fmt_funcs[fmt_code];
-      if (func === undefined) {
-        console.error(`Unsupported format code: ${fmt_code}`);
-      }
-      return func(data, index);
-    }
-
     const data_dict = {};
 
     let graph_data = Array.from({ length: 40 });
@@ -1990,28 +1966,68 @@
     * @param {DataView} data
     */
     function unpack_vals(data, index, length) {
-      // const view = new DataView(data.buffer, data.byteOffset + index, length);
       last_data_update = Date.now();
 
       for (let i = index; i < index + length && i < data.byteLength;) {
         let code;
         [code, i] = getVarInt(data, i);
-        const fmt_list = fmt_for_data[code];
-        if (fmt_list === undefined) {
+        if (!Object.hasOwn(fmt_for_data, code)) {
           console.warn(`Code ${code} doesn't exist`);
           return;
         }
-        const [name, fmt] = fmt_for_data[code];
-        const val_len = code_lens[fmt];
-        data_dict[name] = get_data(data, i, fmt);
-        i += val_len;
+        const [name, fmt_code] = fmt_for_data[code];
+        if (!Object.hasOwn(fmt_funcs, fmt_code)) {
+          console.error(`Unsupported format code: ${fmt_code}`);
+          return;
+        }
+        [data_dict[name], i] = fmt_funcs[fmt_code](data, i);
       }
-      // display data
+    }
+
+    function display_structured_data() {
       let data_str = "";
+      const names = Object.keys(data_dict);
+      const maxNameLen = Math.max(...names.map(n => n.length));
       for (const [name, val] of Object.entries(data_dict)) {
-        data_str += `${name}: ${String(val.toFixed(1)).padStart(10)}\n`;
+        if (name === "ButtonStates") {
+          let line1 = "△      △      △      △\n";
+          let line2 = "L       E    F       R\n";
+          let line3 = "▽        ▽  ▽        ▽\n";
+
+          if (val & (1 << 8)) line1 = "▲" + line1.substring(1);
+          if (val & (1 << 6)) line1 = line1.substring(0,7) + "▲" + line1.substring(8);
+          if (val & (1 << 3)) line1 = line1.substring(0,14) + "▲" + line1.substring(15);
+          if (val & (1 << 1)) line1 = line1.substring(0,21) + "▲" + line1.substring(22);
+
+          if (val & (1 << 7)) line2 = "L  L3" + line2.substring(5);
+          if (val & (1 << 2)) line2 = line2.substring(0,17) + "R3" + line2.substring(19);
+
+          if (val & (1 << 9)) line3 = "▼" + line3.substring(1);
+          if (val & (1 << 5)) line3 = line3.substring(0,9) + "▼" + line3.substring(10);
+          if (val & (1 << 4)) line3 = line3.substring(0,12) + "▼" + line3.substring(13);
+          if (val & (1 << 0)) line3 = line3.substring(0,21) + "▼" + line3.substring(22);
+
+          data_str += line1 + line2 + line3;
+        } else {
+          data_str += `${name.padStart(maxNameLen)}: ${format_structured_data_value(name, val)}\n`;
+        }
       }
       dataEl.textContent = data_str;
+    }
+
+    function format_structured_data_value(name, value) {
+      if (name.startsWith("Axis")) {
+        return `${String(value.toFixed(0)).padStart(4)}`;
+      }
+      if (name.startsWith("dist_")) {
+        return `${String(value.toFixed(0)).padStart(4)} mm`;
+      }
+      if (["Heading", "Rotation", "Roll", "Pitch", "Yaw", "ax", "ay", "az", "gx", "gy", "gz"].includes(name)) {
+        return `${String(value.toFixed(1)).padStart(6)}`;
+      }
+      if (name.startsWith("optical_")) {
+        return `${String(value.toFixed(1)).padStart(6)}`;
+      }
     }
 
     /**
@@ -2261,6 +2277,7 @@
       if (cmd === 0x44) {
         // data message
         unpack_vals(payload, 0, payload.byteLength);
+        display_structured_data();
         update_graph();
       } else if (cmd === 0x46) {
         process_format_msg(payload);
@@ -2382,7 +2399,6 @@
               if ((payload_offset + payload_len) <= dv.byteLength) {
                 // full payload present
                 process_special_message(cmd, new DataView(dv.buffer, payload_offset, payload_len));
-                // unpack_vals(dv, i + 3, pack_len - 2);
                 i = payload_offset + payload_len;
               } else {
                 // incomplete packet
