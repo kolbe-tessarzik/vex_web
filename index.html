@@ -1924,14 +1924,19 @@
     };
     const data_dict = {};
 
-    let graph_data = Array.from({ length: 40 });
-    for (let i = 0; i < graph_data.length; i++) {
-      graph_data[i] = { ...data_dict };
-    }
+    let graph_data = [];
+    let startTime = null;
+    let displayTime = 0;
 
     function update_graph() {
-      graph_data.push(graph_data.shift());
-      graph_data[graph_data.length - 1] = { ...data_dict };
+      if (startTime === null) {
+        startTime = Date.now();
+        displayTime = 0;
+      }
+      graph_data.push({ timestamp: Date.now(), ...data_dict });
+      // Keep data for trailing + window
+      const cutoff = (startTime + displayTime) - 2500;
+      graph_data = graph_data.filter(d => d.timestamp >= cutoff);
       if ((Date.now() - last_data_update) > 1000) {
         myChart.options.plugins.title.text = 'Start Program for Live Data';
       }
@@ -1947,7 +1952,7 @@
           const color = brightColors[i % brightColors.length];
           const dataset = {
             label: name,
-            data: new Array(40).fill(0),
+            data: [],
             yAxisID: scale_for_data[name],
             borderColor: color,
             backgroundColor: color.replace('1)', '0.2)'),
@@ -2502,11 +2507,9 @@
     // Chart display
     // =======================================================
     let myChart = null;
-    const labels = Array.from({ length: 40 }, (_, i) => i * 50);
     let config = {
         type: 'line',
         data: {
-          labels: labels,
           datasets: []
         },
         options: {
@@ -2523,6 +2526,13 @@
             }
         },
           scales: {
+            x: {
+              type: 'linear',
+              title: {
+                display: true,
+                text: 'Time (ms)'
+              }
+            },
             y: {
               min: -180,    // force bottom of y-axis
               max: 180,    // force top of y-axis
@@ -2533,14 +2543,6 @@
               max: 2,    // force top of y-axis
               position: 'right',
             },
-            x: { // Use 'x' for Chart.js v3+ (was 'xAxes' in v2)
-              display: true, // Ensure the x-axis is displayed
-              type: 'category', // This is the default, but good to be explicit
-              ticks: {
-                  autoSkip: false, // Prevents Chart.js from hiding labels for spacing
-                  // You can add other tick configurations here
-              }
-            }
           },
         }
       };
@@ -2598,7 +2600,6 @@
 
     async function chart_loop() {
       if (myChart !== null) {
-        update_graph();
         if (!frozen) {
           var cookie_changed = false;
           var cookie = JSON.parse(localStorage.getItem('GraphShownLines'));
@@ -2607,6 +2608,11 @@
             cookie = {};
             cookie_changed = true;
           }
+          if (startTime !== null) {
+            displayTime = Date.now() - startTime;
+          }
+          const cutoff = startTime + displayTime - 2500;
+          const filtered_data = graph_data.filter(d => d.timestamp >= cutoff);
           for (var i = 0; i < myChart.data.datasets.length; i++) {
             const data_name = myChart.data.datasets[i].label;
             const meta = myChart.getDatasetMeta(i);
@@ -2616,8 +2622,12 @@
               cookie[data_name] = hidden;
               cookie_changed = true;
             }
-            myChart.data.datasets[i].data = graph_data.map(d => d[data_name]);
+            myChart.data.datasets[i].data = filtered_data.map(d => ({x: d.timestamp - startTime, y: d[data_name]}));
           }
+
+          // Set x-axis to fixed window
+          myChart.options.scales.x.min = Math.max(0, displayTime - 2000);
+          myChart.options.scales.x.max = displayTime;
 
           myChart.update();
           if (cookie_changed) {
