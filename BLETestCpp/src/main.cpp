@@ -258,31 +258,29 @@ int main()
     logger.add("Axis B",     []() -> int8_t { return controller.AxisB.position(); });
     logger.add("Axis C",     []() -> int8_t { return controller.AxisC.position(); });
     logger.add("Axis D",     []() -> int8_t { return controller.AxisD.position(); });
-    logger.add("Heading",    []() -> float { return normalize(brain_inertial.heading()); });
-    logger.add("Rotation",   []() -> float { return brain_inertial.rotation(); });
+    logger.add("Heading",    []() -> float { return brain_inertial.orientation(vex::yaw, degrees); });
     logger.add("Roll",       []() -> float { return brain_inertial.orientation(vex::roll, degrees); });
     logger.add("Pitch",      []() -> float { return brain_inertial.orientation(vex::pitch, degrees); });
-    logger.add("Yaw",        []() -> float { return brain_inertial.orientation(vex::yaw, degrees); });
-    logger.add("ax",         []() -> float { return brain_inertial.acceleration(vex::xaxis); }, true);
-    logger.add("ay",         []() -> float { return brain_inertial.acceleration(vex::yaxis); }, true);
-    logger.add("az",         []() -> float { return brain_inertial.acceleration(vex::zaxis); }, true);
-    logger.add("gx",         []() -> float { return brain_inertial.gyroRate(vex::xaxis, vex::dps); }, true);
-    logger.add("gy",         []() -> float { return brain_inertial.gyroRate(vex::yaxis, vex::dps); }, true);
-    logger.add("gz",         []() -> float { return brain_inertial.gyroRate(vex::zaxis, vex::dps); }, true);
+    //logger.add("ax",         []() -> float { return brain_inertial.acceleration(vex::xaxis); }, true);
+    //logger.add("ay",         []() -> float { return brain_inertial.acceleration(vex::yaxis); }, true);
+    //logger.add("az",         []() -> float { return brain_inertial.acceleration(vex::zaxis); }, true);
+    //logger.add("gx",         []() -> float { return brain_inertial.gyroRate(vex::xaxis, vex::dps); }, true);
+    //logger.add("gy",         []() -> float { return brain_inertial.gyroRate(vex::yaxis, vex::dps); }, true);
+    //logger.add("gz",         []() -> float { return brain_inertial.gyroRate(vex::zaxis, vex::dps); }, true);
     logger.add("dist_front", []() -> int16_t { return dist_front.objectDistance(mm); });
     logger.add("dist_rear",  []() -> int16_t { return dist_rear.objectDistance(mm); });
-    logger.add("optical_left.brightness", []() -> float { return optical_left.brightness(); });
-    logger.add("optical_right.brightness",[]() -> float { return optical_right.brightness(); });
+    //logger.add("optical_left.brightness", []() -> float { return optical_left.brightness(); });
+    //logger.add("optical_right.brightness",[]() -> float { return optical_right.brightness(); });
 
     while (true)
     {
         logger.send_data_format();
-        for (int i = 0; i < 10; i++)
+        for (int i = 0; i < 50; i++)
         {
             logger.send_structured_data();
-            ai_vision.takeSnapshot(vex::aivision::ALL_OBJECTS);
-            logger.send_vision_data(ai_vision.objects);
-            wait(100, msec);
+            //ai_vision.takeSnapshot(vex::aivision::ALL_OBJECTS);
+            //logger.send_vision_data(ai_vision.objects);
+            wait(20, msec);
         }
     }
 }
