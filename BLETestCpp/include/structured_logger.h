@@ -262,7 +262,7 @@ class StructuredLogger
 private:
     std::array<uint8_t, 104> m_bufferStorage{};
     static_vector<uint8_t> m_buffer{m_bufferStorage};
-    std::array<uint8_t, 35*AIVISION_MAX_OBJECTS> m_aiBufferStorage{};
+    std::array<uint8_t, 15*AIVISION_MAX_OBJECTS> m_aiBufferStorage{};
     static_vector<uint8_t> m_aiBuffer{m_aiBufferStorage};
 
     std::array<EntryBase *, 50> m_registryStorage{};
