@@ -278,8 +278,8 @@ int main()
         for (int i = 0; i < 50; i++)
         {
             logger.send_structured_data();
-            //ai_vision.takeSnapshot(vex::aivision::ALL_OBJECTS);
-            //logger.send_vision_data(ai_vision.objects);
+            ai_vision.takeSnapshot(vex::aivision::ALL_OBJECTS);
+            logger.send_vision_data(ai_vision.objects);
             wait(20, msec);
         }
     }

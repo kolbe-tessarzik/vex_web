@@ -68,6 +68,18 @@ function unpackVarInt(dv, offset) {
     }
 }
 
+const unpackInt8    = (d, i) => [d.getInt8(i),    i+1];
+const unpackUint8   = (d, i) => [d.getUint8(i),   i+1];
+const unpackInt16   = (d, i) => [d.getInt16(i),   i+2];
+const unpackUint16  = (d, i) => [d.getUint16(i),  i+2];
+const unpackInt32   = (d, i) => [d.getInt32(i),   i+4];
+const unpackUint32  = (d, i) => [d.getUint32(i),  i+4];
+const unpackInt64   = (d, i) => [d.getInt64(i),   i+8];
+const unpackUint64  = (d, i) => [d.getUint64(i),  i+8];
+const unpackFloat16 = (d, i) => [d.getFloat16(i), i+2];
+const unpackFloat32 = (d, i) => [d.getFloat32(i), i+4];
+const unpackFloat64 = (d, i) => [d.getFloat64(i), i+8];
+
 class VisionObject {
     /*
     * @constructor
@@ -80,32 +92,44 @@ class VisionObject {
         this.type = (obj_id & 0b11000000) >> 6;
         this.name = getName(this.id, this.type, "GameElementsMixAndMatch");
 
-        [this.originX, i] = unpackVarInt(dv, i);
-        [this.originY, i] = unpackVarInt(dv, i);
-        [this.centerX, i] = unpackVarInt(dv, i);
-        [this.centerY, i] = unpackVarInt(dv, i);
-        [this.width,   i] = unpackVarInt(dv, i);
-        [this.height,  i] = unpackVarInt(dv, i);
-        [this.score,   i] = unpackVarInt(dv, i);
-        [this.angle,   i] = [dv.getFloat32(i), i+4];
-
         if (this.type == 3) {
             // AprilTag: build quad from tag points
             this.quad = [];
             for (let j = 0; j < 4; j++) {
                 let x, y;
                 [x, i] = unpackVarInt(dv, i);
-                [y, i] = unpackVarInt(dv, i);
+                [y, i] = unpackUint8(dv, i);
                 this.quad.push({x: x, y: y});
             }
+            [this.angle, i] = unpackVarInt(dv, i);
+            this.angle /= 10.0;
+
             this.quad.reverse();
 
-            const cx = this.quad.reduce((s, p) => s + p.x, 0) / 4;
-            const cy = this.quad.reduce((s, p) => s + p.y, 0) / 4;
+            this.centerX = this.quad.reduce((s, p) => s + p.x, 0) / 4;
+            this.centerY = this.quad.reduce((s, p) => s + p.y, 0) / 4;
             this.quad9 = this.quad.map(p => ({
-                x: cx + (p.x - cx) * (9 / 5),
-                y: cy + (p.y - cy) * (9 / 5)
+                x: this.centerX + (p.x - this.centerX) * (9 / 5),
+                y: this.centerY + (p.y - this.centerY) * (9 / 5)
             }));
+
+            this.originX = Math.min(...this.quad.map(p => p.x));
+            this.originY = Math.min(...this.quad.map(p => p.y));
+
+            const maxX = Math.max(...this.quad.map(p => p.x));
+            const maxY = Math.max(...this.quad.map(p => p.y));
+
+            this.width  = maxX - this.originX;
+            this.height = maxY - this.originY;
+        } else {
+            [this.originX, i] = unpackVarInt(dv, i);
+            [this.originY, i] = unpackUint8(dv, i);
+            [this.width,   i] = unpackVarInt(dv, i);
+            [this.height,  i] = unpackUint8(dv, i);
+            [this.score,   i] = unpackUint8(dv, i);
+
+            this.centerX = this.originX + (this.width / 2.0);
+            this.centerY = this.originY + (this.height / 2.0);
         }
 
         this.byteLength = i;

@@ -102,7 +102,7 @@ void pack_integer_be(Container& buf, IntT value)
 }
 
 // Generic pack<T> for integral types
-template<typename Container, typename T>
+template<typename T, typename Container>
 void pack(Container& buf, T value)
 {
     static_assert(std::is_integral<T>::value, "pack<T>: integral types only");
@@ -131,14 +131,16 @@ void pack(Container& buf, double value)
 template<typename Container, typename T>
 void pack_var_int(Container& buf, T num)
 {
+    static_assert(std::is_integral<T>::value, "pack_var_int<Container, T>: integral types only");
+
     if ((num >= 0) && (num < 128))
     {
-        pack<Container, uint8_t>(buf, static_cast<uint8_t>(num));
+        pack<uint8_t>(buf, static_cast<uint8_t>(num));
         return;
     }
     if (num < 32768)
     {
-        pack<Container, uint16_t>(buf, static_cast<uint16_t>(num | 0x8000));
+        pack<uint16_t>(buf, static_cast<uint16_t>(num | 0x8000));
         return;
     }
     printf("WARNING: Number too large to pack (in pack_var_int): %lld\n", (long long)num);
@@ -373,25 +375,27 @@ public:
         }
         uint8_t obj_id = obj_type | (obj.id & 0b111111);
         buf.push_back(obj_id);
-        pack_var_int(buf, obj.originX);    //  0-320
-        pack_var_int(buf, obj.originY);    //  0-240
-        pack_var_int(buf, obj.centerX);    //  0-320
-        pack_var_int(buf, obj.centerY);    //  0-240
-        pack_var_int(buf, obj.width);      //  1-320
-        pack_var_int(buf, obj.height);     //  1-240
-        pack_var_int(buf, obj.score);      //  1-100
-        pack(buf, obj.angle);              //  0-360; float
         if (obj.type == vex::aivision::objectType::tagObject)
         {
             // only pack if it's an AprilTag
             pack_var_int(buf, obj.tag.x[0]);
-            pack_var_int(buf, obj.tag.y[0]);
+            pack<uint8_t>(buf, obj.tag.y[0]);
             pack_var_int(buf, obj.tag.x[1]);
-            pack_var_int(buf, obj.tag.y[1]);
+            pack<uint8_t>(buf, obj.tag.y[1]);
             pack_var_int(buf, obj.tag.x[2]);
-            pack_var_int(buf, obj.tag.y[2]);
+            pack<uint8_t>(buf, obj.tag.y[2]);
             pack_var_int(buf, obj.tag.x[3]);
-            pack_var_int(buf, obj.tag.y[3]);
+            pack<uint8_t>(buf, obj.tag.y[3]);
+
+            pack_var_int(buf, static_cast<uint16_t>(obj.angle * 10)); //  0-360; float
+        }
+        else
+        {
+            pack_var_int(buf,  obj.originX);   //  0-320
+            pack<uint8_t>(buf, obj.originY);   //  0-240
+            pack_var_int(buf,  obj.width);     //  1-320
+            pack<uint8_t>(buf, obj.height);    //  1-240
+            pack<uint8_t>(buf, obj.score);     //  1-100
         }
     }
 };
