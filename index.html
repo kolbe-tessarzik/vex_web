@@ -2033,6 +2033,7 @@
       if (name.startsWith("optical_")) {
         return `${String(value.toFixed(1)).padStart(6)}`;
       }
+      return `${String(value.toFixed(1).padStart(6))}`;
     }
 
     /**
