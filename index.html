@@ -700,8 +700,8 @@
   </div>
   <div class="row">
     <h3>Brain Console</h3>
-    <button id="clearBtn">Clear</button>
-    <pre id="time">hi</pre>
+    <button id="clearStdoutBtn">Clear</button>
+    <pre id="packetStats">    0 B/s  0 pkt/s   0 B/pkt</pre>
   </div>
   <div id="stdout"></div>
 
@@ -759,7 +759,8 @@
     const connectBtn = document.getElementById("connectBtn");
     const renameBtn = document.getElementById("rename");
     const slotPicker = document.getElementById("slotPicker");
-    const clearBtn = document.getElementById('clearBtn')
+    const clearStdoutBtn = document.getElementById('clearStdoutBtn')
+    const packetStatsDiv = document.getElementById("packetStats");
     const stdout = document.getElementById('stdout');
     const dataEl = document.getElementById('structured');
     const overlay = document.getElementById('overlay');
@@ -1744,7 +1745,6 @@
     const modalSubmitBtn = document.getElementById("modalSubmitBtn");
     const modalCancelBtn = document.getElementById("modalCancelBtn");
     const modalHeader = document.getElementById("modal-header");
-    const timeDiv    =  document.getElementById("time");
 
     function modalPrompt(prompt, regex, header, input_max_len = 0, default_input = "") {
       return new Promise((resolve, reject) => {
@@ -2345,16 +2345,16 @@
       const time_diff = now - last_update;
       const bytesPerSecond = (byte_count / time_diff) * 1000;
       const packetsPerSecond = (packet_count / time_diff) * 1000;
-      const BytesPerPacket = packet_count ? (byte_count / packet_count) : 0;
-      timeDiv.textContent = bytesPerSecond.toFixed(0).padStart(5) + " B/s " +
-                            packetsPerSecond.toFixed(0).padStart(2) + " pkt/s " +
-                            BytesPerPacket.toFixed(0).padStart(3) + " B/pkt\n";
+      const bytesPerPacket = packet_count ? (byte_count / packet_count) : 0;
+      packetStatsDiv.textContent = bytesPerSecond.toFixed(0).padStart(5) + " B/s " +
+                                   packetsPerSecond.toFixed(0).padStart(2) + " pkt/s " +
+                                   bytesPerPacket.toFixed(0).padStart(3) + " B/pkt\n";
       if (false) {
         //true to turn on per-packet-size histogram
         const sizes = Object.keys(packet_count_by_size).map(s => Number(s)).sort((a, b) => a - b);
         sizes.forEach(size => {
           const count = packet_count_by_size[size];
-          timeDiv.textContent += size.toFixed(0).padStart(4) + "B: " + "█".repeat(count) + "\n";
+          packetStatsDiv.textContent += size.toFixed(0).padStart(4) + "B: " + "█".repeat(count) + "\n";
           packet_count_by_size[size] = 0;
         });
       }
@@ -2656,7 +2656,7 @@
     init("IQ2");
     createChart();
     connectBtn.addEventListener('click', connect);
-    clearBtn.addEventListener('click', clearStdout);
+    clearStdoutBtn.addEventListener('click', clearStdout);
     renameBtn.addEventListener('click', renameBrain);
     reconnectBtn.addEventListener("click", () => {
       reconnectBtn.classList.add("hidden");
