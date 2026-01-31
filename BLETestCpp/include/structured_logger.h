@@ -168,6 +168,38 @@ void pack_len(Container& buf, int offset)
     buf[offset + 1] = (uint8_t)(payload_len);
 }
 
+
+// CRC-16-CCITT parameters
+constexpr uint16_t POLYNOMIAL_CRC16 = 0x1021;
+constexpr uint16_t CRC16_INIT = 0x0000;
+
+// Generic CRC16 for any container supporting size(), operator[], and push_back()
+// Appends CRC16 to the end of the container (MSB first)
+template <typename Container>
+void append_crc16(Container& buf)
+{
+    uint16_t crc = CRC16_INIT;
+    // Compute CRC over existing data
+    for (size_t i = 0; i < buf.size(); ++i)
+    {
+        crc ^= (uint16_t)buf[i] << 8;  // Align byte to MSB
+        for (uint8_t j = 0; j < 8; ++j)
+        {
+            if (crc & 0x8000)
+            {
+                crc = (crc << 1) ^ POLYNOMIAL_CRC16;
+            }
+            else
+            {
+                crc <<= 1;
+            }
+        }
+    }
+    // Append CRC (MSB first)
+    buf.push_back(static_cast<uint8_t>(crc >> 8)); // high byte
+    buf.push_back(static_cast<uint8_t>(crc));      // low byte
+}
+
 uint8_t get_vision_object_type(vex::aivision::object& obj)
 {
     // encode obj.type in the top 2 bits of the returned byte
@@ -311,6 +343,7 @@ public:
     void send_packet(Container& buf)
     {
         pack_len(buf, 3);
+        append_crc16(buf);
         fwrite(buf.data(), 1, buf.size(), stdout);
         fflush(stdout);
     }

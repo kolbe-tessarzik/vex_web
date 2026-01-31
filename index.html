@@ -2279,6 +2279,36 @@
       drawVisionObjects(objects);
     }
 
+    const CRC_CHECK = {
+      MISMATCH: 0,
+      VALID: 1,
+      VALID_WITH_LAST_BYTE_REPLACEMENT: 3,
+    };
+    /**
+    * @param {Uint8Array} packet - includes header (2), cmd (1), length (1 or 2), payload (N), and crc (2) bytes
+    */
+    function validate_special_message(packet) {
+      // check packet crc; computed over the header cmd, length, and payload bytes (excludes crc itself)
+      const crc1 = crc16(packet.subarray(0, packet.byteLength - 2), 0);
+      let crc2 = (packet.at(-2) << 8) + packet.at(-1);
+      if (crc1 === crc2) {
+        return CRC_CHECK.VALID;
+      } else {
+        // crc check failed
+        if (packet.at(-1) == 0x0d) {
+          // maybe the brain replaced \n (0x0a)
+          // with \r\n (0x0d 0x0a) at the end of the packet;
+          // reevaluate crc2 as if the final byte was 0x0a
+          crc2 = (packet.at(-2) << 8) + 0x0a;
+        }
+        if (crc1 === crc2) {
+          return CRC_CHECK.VALID_WITH_LAST_BYTE_REPLACEMENT;
+        } else {
+          return CRC_CHECK.MISMATCH;
+        }
+      }
+    }
+
     function process_special_message(cmd, payload) {
       if (cmd === 0x44) {
         // data message
@@ -2399,19 +2429,46 @@
           if (   ((i + 3) < dv.byteLength)
               && (   ((dv.getUint8(i + 3) & 0x80) === 0x00) // payload_len is 1 byte
                   || ((i + 4) < dv.byteLength)) // payload_len is 2 bytes, and that byte is available
-            ) {
-              const cmd = dv.getUint8(i + 2);
-              const [payload_len, payload_offset] = getVarInt(dv, i + 3);
-              if ((payload_offset + payload_len) <= dv.byteLength) {
-                // full payload present
-                process_special_message(cmd, new DataView(dv.buffer, payload_offset, payload_len));
-                i = payload_offset + payload_len;
-              } else {
-                // incomplete packet
-                // store in byteBuffer until next packet
-                byteBuffer = dv.buffer.slice(i);
-                return;
+          ) {
+            const cmd = dv.getUint8(i + 2);
+            const [payload_len, payload_offset] = getVarInt(dv, i + 3);
+            const pre_payload_len = (payload_offset - i);
+            const crc_len = 2;
+            const packet_length = pre_payload_len + payload_len + crc_len;
+            if ((payload_offset + payload_len + crc_len) <= dv.byteLength) {
+              // full payload present
+              const packet = new Uint8Array(dv.buffer, i, packet_length)
+              const payload = new DataView(dv.buffer, payload_offset, payload_len);
+              const crc_result = validate_special_message(packet);
+              switch (crc_result)
+              {
+                case CRC_CHECK.VALID:
+                case CRC_CHECK.VALID_WITH_LAST_BYTE_REPLACEMENT:
+                  process_special_message(cmd, payload);
+                  i += packet_length;
+                  if (   (crc_result === CRC_CHECK.VALID_WITH_LAST_BYTE_REPLACEMENT)
+                      && (dv.getUint8(i) == 0x0a))
+                  {
+                    logData("[INVALID]", packet)
+                    // skip next byte
+                    i += 1;
+                  }
+                  break;
+
+                case CRC_CHECK.MISMATCH:
+                default:
+                  // invalid packet
+                  logData("[INVALID structured data]", packet)
+                  // skip the 2 header bytes and continue looking for a valid packet
+                  i += 2;
+                  break;
               }
+            } else {
+              // incomplete packet
+              // store in byteBuffer until next packet
+              byteBuffer = dv.buffer.slice(i);
+              return;
+            }
           } else {
             // incomplete packet
             // store in byteBuffer until next packet
